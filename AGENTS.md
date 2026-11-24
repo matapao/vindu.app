@@ -1,8 +1,10 @@
 # Working on Vindu.app
 
-Keep web and Electron behavior in the shared app. The Electron host lives in `frame/`.
-Shared rendering and UI sessions belong in `../vindu`. Connector execution and accounting belong in `../celler`.
-The host controls device permissions and processor access. Keep harness prompts and tool descriptions with the consumer.
+Vindu.app is its own app: it installs as an Electron app or as a web app in the browser, and runs its own tasks.
+No other app installs into it or is launched from it. Keep web and Electron behavior in the shared app (`src/`,
+`static/`). The Electron app lives in `frame/`. Change a dependency pinned in [dependencies.json](dependencies.json)
+in its own checkout, never in `node_modules`. The app controls device permissions and which processors its tasks may
+use. Keep harness prompts and tool descriptions with the processor that runs a task.
 
 ## Code style
 

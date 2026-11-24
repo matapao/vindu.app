@@ -36,8 +36,8 @@ const { appendNote, appendAppNotice, appendUserMessage, showQuestion } = message
 const options = createTaskOptions(() => activeTask, refreshSendButton, messages);
 const turns = createTaskTurns(options.selectedServers, messages, refreshTaskStatus);
 useTheme();
-// Adopt the page's controls so the installed app and an embedded workspace share
-// navigation and input behavior. Desktop adds its own task actions and connectors.
+// Adopt the page's own controls for the workspace's navigation and input behavior.
+// Desktop adds its own task actions and connectors.
 const workspace = mountWorkspace(document.body, {
   styles: false,
   elements: {

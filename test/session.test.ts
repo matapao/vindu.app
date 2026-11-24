@@ -7,7 +7,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { startVindu } from '@matapao/vindu/server';
 import { openTask } from '../src/task.js';
 
-test('a task with no consumer still serves its UI over MCP', async () => {
+test('a task with no processor still serves its UI over MCP', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vindu-detached-'));
   const uiProvider = await startVindu();
   const client = new Client({ name: 'independent-client', version: '1' });
@@ -15,7 +15,7 @@ test('a task with no consumer still serves its UI over MCP', async () => {
     const task = await openTask({ harness: 'reports', cwd: directory, dataDir: directory, uiProvider, onShow() {}, onText() {} });
     try {
       assert.equal(task.attached, false);
-      await assert.rejects(task.prompt('Hello'), /No consumer is attached/);
+      await assert.rejects(task.prompt('Hello'), /No processor is connected/);
       await client.connect(new StreamableHTTPClientTransport(new URL(task.ui.url)));
       const tools = await client.listTools();
       assert.ok(tools.tools.some(tool => tool.name === 'show_view'));
@@ -25,8 +25,8 @@ test('a task with no consumer still serves its UI over MCP', async () => {
   } finally { await uiProvider.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('the consumer receives the files and cancellation for its turn and releases its session on close', async () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vindu-consumer-turn-'));
+test('the processor receives the files and cancellation for its turn and releases its session on close', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vindu-processor-turn-'));
   const uiProvider = await startVindu();
   let received!: () => void;
   const ready = new Promise<void>(resolve => { received = resolve; });

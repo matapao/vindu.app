@@ -1,4 +1,4 @@
-// The test app owns this session. It receives the same UI endpoint an app would give its MCP client.
+// The tests' processor, in place of a harness. It receives the same UI endpoint a harness gives its MCP client.
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { Switch, TaskConnection, TaskConsumer } from '../src/task.js';
 

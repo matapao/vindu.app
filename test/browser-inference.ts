@@ -1,4 +1,4 @@
-// The test app receives the selected processor and an exact prompt from the real desktop UI.
+// The test's connection receives the processor the person picked and an exact prompt from the real desktop UI.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -66,7 +66,7 @@ try {
   assert.equal(runs[1]?.prompt, 'Use this invoice.');
   assert.match(runs[1].context, /INV-0042/);
   assert.match(runs[1].context, /ctx:r1/);
-  console.log('ok 3 - the consumer renders an exact result over MCP and receives the selected row with the next message');
+  console.log('ok 3 - the processor renders an exact result over MCP and receives the selected row with the next message');
   const [id] = app.tasks.keys();
   await page.reload();
   await page.locator('#thread .said', { hasText: 'Received the invoice.' }).waitFor();

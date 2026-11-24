@@ -51,9 +51,9 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
     const harness = detached ? '' : harnessOf(ask.harness);
     if (!detached) {
       ensureProcessor(harness);
-      if (!o.connect) throw new Error('No consumer is attached to this task.');
+      if (!o.connect) throw new Error('No processor is connected to this task.');
     }
-    if (ask.inference) throw new Error('The consumer configures its model endpoint.');
+    if (ask.inference) throw new Error('The processor configures its model endpoint.');
     const q = { ...ask, harness } as Opening;
     const now = readSettings();
     const dataDir = path.join(userData, 'tasks', id);
@@ -87,7 +87,7 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
       ...taskUpdates(id, !!saved, host, state, media),
       ...(now.jobs?.on && !detached && !isJob ? { onJob: async (j: { view: string; label: string; prompt: string; connectors?: string[]; writes: boolean; snapshot: ReturnType<OpenTask['snapshot']> }): Promise<{ id?: string; refused?: string }> => {
         const t0 = tasks.get(id); const was = opened.get(id); if (!t0 || !was) return { refused: 'the task is closing' };
-        if (!t0.attached) return { refused: 'No consumer is attached to this task.' };
+        if (!t0.attached) return { refused: 'No processor is connected to this task.' };
         const r = await start({ ...was.q, template: undefined }, was.cwd, {
           from: { snapshot: j.snapshot, record: t0.record, task: id }, job: j,
         });
@@ -153,7 +153,7 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
     if (!initial) throw new Error('The task is no longer open');
     const item: ThreadItem = { kind: 'user', text, files: attachments?.map(({ name }) => ({ name })) ?? [] };
     if (typeof text !== 'string') throw new Error('Give the task a message.');
-    if (!t.attached) throw new Error('No consumer is attached to this task.');
+    if (!t.attached) throw new Error('No processor is connected to this task.');
     ensureProcessor(initial.q.harness);
     if (a?.running) throw new Error('This task is already running');
     remember(id, item); send('user', id, item, origin);

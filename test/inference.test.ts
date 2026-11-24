@@ -33,12 +33,12 @@ test('a saved custom endpoint does not appear or start a harness', async () => {
     inference: [{ name: 'archive-model', harness: 'claude', base: 'http://127.0.0.1:1', model: 'archive-model', keyFile }],
   }));
   let connectRequests = 0;
-  const app = await startApp({ userData: directory, home: directory, port: 17760, processors: [{ id: 'reports', name: 'Reports' }], connect() { connectRequests++; throw new Error('No consumer should be attached'); } });
+  const app = await startApp({ userData: directory, home: directory, port: 17760, processors: [{ id: 'reports', name: 'Reports' }], connect() { connectRequests++; throw new Error('No processor should be connected'); } });
   try {
     assert.deepEqual(await call(app.desktop.url, 'settings:inference'), []);
     const { processors } = await call(app.desktop.url, 'settings:processors') as { processors: { id: string }[] };
     assert.deepEqual(processors.map(processor => processor.id).sort(), ['reports']);
-    await assert.rejects(call(app.desktop.url, 'task:create', { id: 'old-model', harness: 'reports', inference: 'archive-model' }), /consumer configures its model endpoint/);
+    await assert.rejects(call(app.desktop.url, 'task:create', { id: 'old-model', harness: 'reports', inference: 'archive-model' }), /processor configures its model endpoint/);
     assert.ok(!app.tasks.has('old-model'));
     assert.equal(connectRequests, 0);
   } finally {
@@ -67,7 +67,7 @@ async function showJobHook(task: OpenTask) {
   } finally { await client.close(); }
 }
 
-test('the default desktop advertises no processors and can host a detached task', async () => {
+test('Desktop started with no processors lists none, and opens a task that only shows views', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vindu-view-only-'));
   fs.writeFileSync(path.join(directory, 'settings.json'), JSON.stringify({ jobs: { on: true } }));
   const app = await startApp({ userData: directory, home: directory, port: 17760 });
@@ -79,25 +79,25 @@ test('the default desktop advertises no processors and can host a detached task'
     assert.equal(task.attached, false);
     assert.equal(await showJobHook(task), 'off: jobs are off in this app');
     assert.equal(task.event({ type: 'action', name: 'hook', view: 'watch', context: { n: 0, on: true } }), false);
-    await assert.rejects(call(app.desktop.url, 'task:prompt', 'read-only', 'Hello'), /No consumer is attached/);
+    await assert.rejects(call(app.desktop.url, 'task:prompt', 'read-only', 'Hello'), /No processor is connected/);
     await call(app.desktop.url, 'task:close', 'read-only');
   } finally { await app.close(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('a consumer can decline a requested desktop task or a job without leaving it in Activity', async () => {
+test('a processor can decline a requested desktop task or a job without leaving it in Activity', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vindu-job-refusal-'));
   fs.writeFileSync(path.join(directory, 'settings.json'), JSON.stringify({ jobs: { on: true } }));
   const app = await startApp({ userData: directory, home: directory, port: 17760, processors: [{ id: 'reports', name: 'Reports' }],
     connect: task => task.id === 'parent' ? { send: async () => ({ text: '' }) } : undefined });
   try {
-    await assert.rejects(call(app.desktop.url, 'task:create', { id: 'declined', harness: 'reports' }), /No consumer is attached/);
+    await assert.rejects(call(app.desktop.url, 'task:create', { id: 'declined', harness: 'reports' }), /No processor is connected/);
     await call(app.desktop.url, 'task:create', { id: 'parent', harness: 'reports' });
     const parent = app.tasks.get('parent')!;
     assert.equal(await showJobHook(parent), 'off until the person turns it on, in the window');
     assert.ok(parent.event({ type: 'action', name: 'hook', view: 'watch', context: { n: 0, on: true } }));
     parent.event({ type: 'view', view: 'watch', action: 'select', panel: 'p_rows', from: 0 });
     const history = path.join(directory, 'tasks', 'parent', 'ui-calls.jsonl');
-    await vi.waitFor(() => assert.match(fs.readFileSync(history, 'utf8'), /did not start its job: No consumer is attached/), { timeout: 10_000 });
+    await vi.waitFor(() => assert.match(fs.readFileSync(history, 'utf8'), /did not start its job: No processor is connected/), { timeout: 10_000 });
     assert.deepEqual([...app.tasks.keys()], ['parent']);
     assert.deepEqual(app.activity().entries.map(entry => entry.id), ['parent']);
   } finally { await app.close(); fs.rmSync(directory, { recursive: true, force: true }); }

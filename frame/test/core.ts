@@ -1,5 +1,5 @@
 // A core for the desktop app's live panes test, started by the app as main.ts would be (VINDU_CORE): on the port and in
-// the folder it is given, with the app's link taken out of its environment at once. The test supplies its own consumer and an in-memory key store.
+// the folder it is given, with the app's link taken out of its environment at once. The test supplies its own processor and an in-memory key store.
 // For the test, it tells what it has at an address of its own (in test-core.json, in its folder): its tasks, their
 // pages (each pictured, or live in the app), their UI servers, and what an expression gives in a page.
 import fs from 'node:fs';
@@ -21,7 +21,7 @@ const work = fs.mkdtempSync(path.join(os.tmpdir(), 'frame-work-'));
 const kept = new Map<string, string>();
 const secrets = { available: async () => true, set: async (n: string, v: string) => { kept.set(n, v); return 'memory'; }, get: async (n: string) => kept.get(n), clear: async (n: string) => { kept.delete(n); } };
 const frame = await frameLink(); // out of the environment before anything is started
-// The other side of this test connects exactly where the consumer was told to connect.
+// The other side of this test connects exactly where the processor was told to connect.
 type Endpoint = { name: string; url: string; headers: Record<string, string> };
 const endpoints = new Map<string, Endpoint>();
 const a = await startApp({ userData, port: Number(process.env.VINDU_PORT) || 17810, secrets, pickFolder: async () => work,

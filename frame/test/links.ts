@@ -2,8 +2,8 @@
 // link in its address's fragment (#vindu-link=…), whichever way the link comes: among the app's arguments as it starts (as
 // Windows and Linux give it), as a Mac gives it (open-url, emitted here), or among a second start's arguments
 // (second-instance). The page there stays as it is: a fragment loads nothing, and the page hears it change. A link that
-// names another app, or is no link of the app's: Desktop's window comes forward, and nothing else. No scheme is
-// registered on this computer for it: the links are given to the app as a system would.
+// names no window of the app's, or is no link of the app's: Desktop's window comes forward, and nothing else. No scheme
+// is registered on this computer for it: the links are given to the app as a system would.
 // On ports and in folders of the test's own; its windows show on the screen:
 //   pnpm build (in vindu, then here), then pnpm test here
 import { spawn } from 'node:child_process';
@@ -107,13 +107,13 @@ try {
   check(kept.kept === 'this page' && kept.heard?.at(-1) === `#vindu-link=${encodeURIComponent(enroll)}` && (await shown()).length === 1,
     'a second start with a link leaves at once; the first takes it in Desktop\'s window, the same page');
 
-  // a link that names another app: Desktop's window comes forward, as it is. Other malformed inputs are parser cases,
-  // covered without opening a window in link-routing.ts.
+  // a link that names no window of the app's: Desktop's window comes forward, as it is. Other malformed inputs are
+  // parser cases, covered without opening a window in link-routing.ts.
   await minimize(PORT);
-  await openUrl('vindu://no-such-app/x');
-  await forwardAgain(PORT, 'Desktop\'s window, forward for an unknown app');
+  await openUrl('vindu://no-such-window/x');
+  await forwardAgain(PORT, 'Desktop\'s window, forward for an unknown window');
   check((await shown()).length === 1 && linked(desk.url(), enroll) && await desk.evaluate(() => (window as unknown as { kept?: string }).kept) === 'this page',
-    'a link to another app brings Desktop\'s window forward, its page and its link as they were');
+    'a link to no window of the app\'s brings Desktop\'s window forward, its page and its link as they were');
 
   // Quit: the core stops
   const closed = a.waitForEvent('close', { timeout: 30_000 });

@@ -1,4 +1,4 @@
-// A connector that requires OAuth is unavailable until the host has a supported credential configuration.
+// A connector that requires OAuth is unavailable until the app has a supported credential configuration.
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { test } from 'vitest';

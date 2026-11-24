@@ -1,35 +1,33 @@
 # Vindu.app
 
-Vindu.app is the default web and Electron workspace for the Vindu SDK.
-Open a task in Activity to resume its conversation, panes and selected context.
-The SDK renders tool inputs and results. Celler handles connector permissions and calls.
+Vindu.app is an app of its own. It installs itself as an Electron app, or as a web app from its page in the browser.
+Either way it opens Desktop, where it runs its own tasks. Activity lists them, and a task resumes its conversation,
+panes and selected context. Settings, in Activity's head, sets the processors its tasks may use, their daily budget,
+and the phone paired with it.
 
 ## Run locally
 
-Use Git, Node.js 24.11 or later, and pnpm. Place the `vindu.app`, `vindu` and `celler` checkouts side by side.
-From `vindu.app`, build the three local checkouts and start the web workspace.
+Use Git, Node.js 24.11 or later, and pnpm. `node scripts/bootstrap.mjs` checks out the revisions pinned in
+[dependencies.json](dependencies.json) beside this checkout, builds them with frozen lockfiles, and builds the app.
+With `--local`, it builds the checkouts beside this one as they are.
 
 ```sh
 node scripts/bootstrap.mjs --local
 pnpm start
 ```
 
-For Electron, fetch the runtime once and launch the desktop app.
+`pnpm start` serves Desktop and opens it in the browser, which can install it as a web app.
+For the Electron app, fetch the runtime once and launch it.
 
 ```sh
 pnpm --dir frame electron:fetch
 pnpm --dir frame start
 ```
 
-For a fresh clone or CI, run `node scripts/bootstrap.mjs`. First set both public Git URLs
-and full commit SHAs in [dependencies.json](dependencies.json). The build verifies each checkout and uses frozen lockfiles.
+## Processors
 
-## Connect a processor
+A task runs on a processor. `startApp` in `src/app.ts` takes the processors (`processors`) and how a task connects
+to the one it runs on (`connect`). `pnpm start` and the Electron app start with none yet, so their tasks show views
+and take no prompt.
 
-A host supplies its processors and task connection through `startApp({ processors, connect })` in `src/app.ts`.
-This connection is required to send a prompt. The host owns the account, model and conversation.
-In Desktop, Settings (in Activity's head) ticks which processors it may use and sets its daily budget.
-For a layout-only coordinator, register the open task’s `ui.layoutMcpServer` with its MCP client.
-It exposes pane geometry without sharing pane contents.
-
-See [AGENTS.md](AGENTS.md) for checks and local packaging commands.
+See [AGENTS.md](AGENTS.md) for checks and packaging.

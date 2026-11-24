@@ -53,7 +53,7 @@ export async function openDesktopHost(o: AppOptions) {
     pageParentOrigins: (): string[] => desktopOrigins(),
     reminders: true, ...(settings.holidays ? { holidays: settings.holidays } : {}), jobs: { perDay: settings.jobs?.perDay ?? 3 } });
   const celler = openCellerHost(path.join(userData, 'celler'));
-  // New workspaces grant the processors registered by the consuming app; existing policy stays in force.
+  // A new data folder grants Desktop every processor it starts with; a folder with an older policy keeps that policy.
   const hasLegacyPolicy = fs.existsSync(path.join(userData, 'senter'));
   celler.register(APP.id, hasLegacyPolicy ? [] : processors.map(harness => harness.id));
   const granted = () => processors.filter(h => celler.grants(APP.id).includes(h.id));

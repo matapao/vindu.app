@@ -24,7 +24,7 @@ export async function bindTaskTools(host: DesktopHost, scope: ToolScope) {
     key: keyOf, readsOnly,
     server: async server => (await withKeys([server], keyNamed)).servers[0],
   });
-  const callTool = async (server: string, tool: string, args: unknown, audience: 'app' | 'source' | 'consumer' = 'app', signal?: AbortSignal) => {
+  const callTool = async (server: string, tool: string, args: unknown, audience: 'app' | 'source' | 'processor' = 'app', signal?: AbortSignal) => {
     const readOnly = audience === 'source';
     const node = (audience === 'app' ? tools.appNodes : tools.nodes).find(candidate => candidate.id === `${server}.${tool}`);
     if (!node || !mayUse(server) || readOnly && node.definition.annotations?.readOnlyHint !== true) throw new Error('This connector tool is unavailable to the view');
@@ -46,7 +46,7 @@ export async function bindTaskTools(host: DesktopHost, scope: ToolScope) {
     return entry;
   };
   const bindings: Pick<TaskSetup, 'callTool' | 'appsProvider' | 'sources'> = {
-    callTool: async (server, tool, args, signal) => (await callTool(server, tool, args, 'consumer', signal)).result,
+    callTool: async (server, tool, args, signal) => (await callTool(server, tool, args, 'processor', signal)).result,
     appsProvider: { tools: tools.tools, read: tools.read, call: async (server, tool, args) => (await callTool(server, tool, args)).result },
     sources: {
       isRead: (server, tool) => tools.nodes.some(node => node.id === `${server}.${tool}` && node.definition.annotations?.readOnlyHint === true && mayUse(server)),

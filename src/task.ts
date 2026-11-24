@@ -1,4 +1,4 @@
-// The desktop host keeps a task's local projection and passes its UI connection to the consuming app.
+// A task of Desktop's: its local projection, and its UI connection, passed to the processor that runs it.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -234,7 +234,7 @@ export async function openTask(setup: TaskSetup) {
     }
     if (t.permission) return t.permission(question, signal);
     const parts = /^mcp__(.+?)__(.+)$/.exec(question.tool);
-    const server = parts?.[1] ?? 'consumer', tool = parts?.[2] ?? question.tool;
+    const server = parts?.[1] ?? 'processor', tool = parts?.[2] ?? question.tool;
     const chosen = await ui.permission({ title: question.title, tool, input: question.input, options: question.options,
       own: mcpServers.some(item => item.name === server), server, name: tool }, signal);
     return chosen === null || !question.options[chosen] ? null : { option: question.options[chosen].optionId };
@@ -260,7 +260,7 @@ export async function openTask(setup: TaskSetup) {
         return t.callTool!(server, tool, args, signal);
       } } : {}),
     });
-    if (t.connect && !consumer) throw new Error('No consumer is attached to this task.');
+    if (t.connect && !consumer) throw new Error('No processor is connected to this task.');
   };
   try {
     if (t.restore) {
@@ -293,7 +293,7 @@ export async function openTask(setup: TaskSetup) {
   async function prompt(text: string, attachments: Attachment[] = []) {
     if (closed) throw new Error('The task is closed.');
     if (!consumer && t.restore) attach();
-    if (!consumer) throw new Error('No consumer is attached to this task.');
+    if (!consumer) throw new Error('No processor is connected to this task.');
     if (active) throw new Error('This task already has a running turn.');
     const controller = new AbortController();
     active = controller;

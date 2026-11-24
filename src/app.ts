@@ -1,5 +1,5 @@
-// The desktop host connects its task windows to the consuming app. Celler brokers connector tools.
-// Vindu serves task views and questions, in the desktop window, browser and paired devices.
+// The app's core: it opens Desktop's tasks and connects each to the processor that runs it. Celler brokers connector
+// tools. Vindu serves task views and questions, in the desktop window, browser and paired devices.
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Sender } from './web.js';

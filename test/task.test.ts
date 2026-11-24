@@ -1,4 +1,4 @@
-// A consumer attaches to a task and uses its real UI endpoint. No model is called.
+// A processor attaches to a task and uses its real UI endpoint. No model is called.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -13,7 +13,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 const tmp = (p: string) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const until = async (f: () => boolean, ms = 8000) => { const end = Date.now() + ms; while (!f()) { if (Date.now() > end) throw new Error('timed out'); await new Promise(r => setTimeout(r, 25)); } };
 
-test('the consumer supplies settings, asks, activity and exact results to the task window', async () => {
+test('the processor supplies settings, asks, activity and exact results to the task window', async () => {
   const uiProvider = await startVindu();
   const asks: Shown[] = []; const opened: string[] = []; const switched: Switch[][] = []; let text = '';
   const activity: unknown[] = [];
@@ -178,7 +178,7 @@ test('a static view: the app reads its sources itself, read-only tools only; wha
   } finally { await t.close(); await uiProvider.close(); }
 });
 
-test('slash commands and ordinary text reach the consumer exactly as typed', async () => {
+test('slash commands and ordinary text reach the processor exactly as typed', async () => {
   const uiProvider = await startVindu();
   const cwd = tmp('work-'), home = tmp('home-'), data = tmp('data-'); let text = '';
   const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectConsumer, env: { PATH: '/bin', HOME: home },

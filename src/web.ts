@@ -63,7 +63,7 @@ export type PageServerOptions = {
   /** Its own addresses under the token (an upload, a download): true when it answered. */
   routes?: (req: http.IncomingMessage, res: http.ServerResponse, rest: string) => boolean | Promise<boolean>;
   /** The page as a web app the person can install, in a window of its own: its name and its icon (SVG or PNG), as the
-   *  grid shows them, and the colours of its bar (theme) and of its window before the page draws (background), its
+   *  system shows them, and the colours of its bar (theme) and of its window before the page draws (background), its
    *  light ones. The page links manifest.webmanifest and app-icon, both served under the token. */
   app?: WebApp;
   /** What a page on another device (by the tailnet's name or the Wi-Fi's) is told in place of what a page here is told:

@@ -17,13 +17,13 @@ export type Settings = { servers?: ServerSpec[]; apps?: AppsSwitch; appsNetwork?
   tasksFolder?: string;                       // where a task gets a folder of its own when the person picks none (~/Vindu)
 };
 type Processor = { id: string; name: string };
-/** Desktop: the app this process serves, and the owner of its tasks in Celler. */
+/** Desktop: the app itself, and the owner of its tasks in Celler. */
 export const APP = { id: 'desktop', name: 'Vindu' };
 export type AppOptions = {
   pickFolder?: () => Promise<string | null>;                  // the task's working folder: the person picks it, by default
   pickSave?: (name: string) => Promise<string | null>;         // where an export goes: the person picks it, by default
-  processors?: Processor[];
-  connect?: TaskSetup['connect'];
+  processors?: Processor[];                                    // the harnesses its tasks may run on, as Processors in Settings lists them: none, by default
+  connect?: TaskSetup['connect'];                              // each task's connection to its processor: without one, a task shows views and takes no prompt
   userData?: string;                                           // settings and tasks: the system's place for the app's data, by default
   home?: string;                                               // the person's home, for ~ in paths
   port?: number;                                               // Desktop's port (7300); the keys page's is the next one

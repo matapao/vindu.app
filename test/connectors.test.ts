@@ -45,7 +45,7 @@ async function fixture() {
   } };
 }
 
-test('the connector host stages the exact write for the consuming app and permits declared reads', async () => {
+test('the connector host stages the exact write for the person to review and permits declared reads', async () => {
   const api = await fixture();
   const host = openCellerHost(path.join(api.directory, 'host'));
   const { connectors, failed } = loadConnectors(api.directory);
@@ -86,7 +86,7 @@ test('the connector host stages the exact write for the consuming app and permit
   } finally { await host.close(); await api.close(); }
 });
 
-test('two apps can read concurrently through one connector with their own grants and results', async () => {
+test('two owners can read concurrently through one connector with their own grants and results', async () => {
   const api = await fixture();
   const host = openCellerHost(path.join(api.directory, 'host'));
   const bridge = await connectorTools(loadConnectors(api.directory).connectors, { key: () => KEY, readsOnly: true });

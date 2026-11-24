@@ -21,7 +21,7 @@ import { client, startCore, type Core } from './core.js';
 import { coresElsewhere } from './cores.js';
 import { trayIcon } from './icon.js';
 import { startLink, type Link } from './link.js';
-import { appOf, linkIn, withLink } from './links.js';
+import { linkIn, windowOf, withLink } from './links.js';
 import { watchUpdates, type Updates } from './update.js';
 
 if (process.env.VINDU_FRAME_DATA) app.setPath('userData', process.env.VINDU_FRAME_DATA); // a test's own, or a second app's
@@ -58,7 +58,7 @@ function frame() {
     } catch { return false; }
   };
   let localPages: { desktop: string; pagesPort: number } | undefined;
-  // Vindu issues a separate origin for each task and app on its own page server.
+  // Vindu gives each task's pages, and each MCP App, an origin of its own on its page server.
   const taskFrame = (url: string, parent: string | undefined) => {
     if (!localPages || !parent) return false;
     try {
@@ -131,16 +131,16 @@ function frame() {
   const outOfReach = (name: string) => `data:text/html;base64,${Buffer.from(`<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>${name.replace(/[<>&"]/g, '')}: out of reach</title><body style="font:15px system-ui,sans-serif;padding:32px;color:#898781;background:light-dark(#fcfcfb,#1a1a19);color-scheme:light dark"><b>${name.replace(/[<>&"]/g, '')}</b> is out of reach. vindu tries again every few seconds; nothing is lost, the work stays there.</body>`).toString('base64')}`;
 
   /** A link (links.ts): Desktop's window, with the link in its address's fragment (a fragment loads nothing, and the
-   *  page hears it). A link that names another app, or is no link of the app's: Desktop's window comes forward,
-   *  and nothing else. In a client, the same in the Desktop of the core elsewhere in front last; with none yet, the window
-   *  to add one comes forward. */
+   *  page hears it). A link that names no window of the app's, or is no link of the app's: Desktop's window comes
+   *  forward, and nothing else. In a client, the same in the Desktop of the core elsewhere in front last; with none yet,
+   *  the window to add one comes forward. */
   const take = async (l: string) => {
     if (client ? !up : !core) { waiting.push(l); return; }
-    const id = appOf(l);
+    const id = windowOf(l);
     if (id === 'add-core') { openAdd(); return; } // vindu://add-core: the window to add a core elsewhere
     const to = client ? lastElsewhere() : 'here'; if (!to) { openAdd(); return; }
     const given = id === 'desktop' ? l : undefined;
-    if (!given) console.error('vindu: a link that names no app of vindu\'s opens Desktop as it is');
+    if (!given) console.error('vindu: a link that names no window of vindu\'s opens Desktop as it is');
     if (to === 'here') showDesktop(given); else showElsewhere(to, given);
   };
 

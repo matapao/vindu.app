@@ -6,7 +6,7 @@
 // as it serves its pages (network.ts), and which hands each request on to Vindu's page host as that origin: a port per
 // origin keeps an origin per task on the device too. What a page on another device is told (web.ts's away) names each
 // of Vindu's addresses as that device reaches it, through its door; a page here is told them as they are.
-// A door opens for a paired device alone, by a key made here for that device (never its token, which no app is given):
+// A door opens for a paired device alone, by a key made here for that device (never its token, which no page is given):
 // the address the device is told carries it once (?vindu-door=…), and the door keeps it in a cookie (HttpOnly,
 // SameSite=Strict) and sends the page on without it, so the page's own requests (its scripts, its data, its events)
 // carry it and no page sees it. A device removed opens nothing; nor does this computer's own name, by which Vindu's page
