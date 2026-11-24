@@ -70,7 +70,9 @@ test('the phone window: the views at its width, answers with its own name, a pho
     const pane = phone.locator(`.vindu-pane[data-view="${ask.name}"]`);
     await pane.getByText('Kari', { exact: false }).first().waitFor(); // the first yes is shown there too
     await pane.getByRole('button', { name: /^Allow/ }).first().click();
-    const r = await call;
+    // the call waits a while for both, then says pending, as it would to a model: the ticket is then waited on, until both said yes
+    let r = await call;
+    for (let n = 0; r.pending && n < 20; n++) r = await json('await_answer', { ticket: r.ticket });
     assert.deepEqual(r.output, { transferred: 250000 }, `what the call returned: ${JSON.stringify(r)}`);
     assert.deepEqual((ui.answers().at(-1) as any).who, ['Kari (main)', 'Ola (phone)']);
     assert.ok(log.some(e => e.phone === 'event' && e.who === 'Ola' && e.ok === true));
