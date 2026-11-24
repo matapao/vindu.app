@@ -73,7 +73,7 @@ test('an existing directory containing local work is preserved before any checko
 test('only explicit local mode builds the two named sibling packages without pins', () => {
   const fixture = workspace();
   const unpublished = { celler: { url: '', sha: '' }, vindu: { url: '', sha: '' } };
-  for (const [name, packageName] of [['celler', 'celler'], ['vindu', '@matapao/vindu']]) {
+  for (const [name, packageName] of [['celler', '@matapao/celler'], ['vindu', '@matapao/vindu']]) {
     const missing = fixture.build(unpublished, {}, ['--local']);
     assert.equal(missing.status, 1, missing.stderr);
     assert.match(missing.stderr, new RegExp('Expected the local ' + packageName));
