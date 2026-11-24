@@ -38,7 +38,7 @@ export function desktopConnectors(userData: string, readSettings: () => Settings
   let keysPage: Promise<PageServer> | undefined;
   /** The page where the person sets a connector's key: its own address, on an origin of its own, so no other page reaches the keys. */
   const openKeys = async () => {
-    keysPage ??= startPageServer({ name: 'keys', port: (o.port ?? 7300) + 2, token: keptToken(tokens, 'keys'), page: path.join(STATIC, 'keys.html'),
+    keysPage ??= startPageServer({ name: 'keys', port: (o.port ?? 7300) + 1, token: keptToken(tokens, 'keys'), page: path.join(STATIC, 'keys.html'),
       files: { 'keys.bundle.js': path.join(BUILT, 'keys.bundle.js') },
       csp: "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'" }).then(k => {
       k.handle('keys:list', async () => ({ safe: await safeStore(), list: keyed() }));

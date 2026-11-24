@@ -1,7 +1,7 @@
 // This computer's core, as the desktop app runs it: the same core `pnpm start` runs (src/main.ts), on the app's
 // own Node, with no browser opened, and given the app's link (link.ts) so its browser views' pages live here; or one
 // running already (started in a terminal), which the app uses and leaves running, with no link. The core says where its
-// shell is in a line of its own, and the app opens that. A client build has no core here, and starts none.
+// Desktop is in a line of its own, and the app opens that. A client build has no core here, and starts none.
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,11 +19,11 @@ export const client = (() => {
 const CORE = process.env.VINDU_CORE ?? (app.isPackaged ? path.join(process.resourcesPath, 'core', 'dist', 'src', 'main.js') : path.join(import.meta.dirname, '..', '..', '..', 'dist', 'src', 'main.js'));
 
 export type Core = {
-  /** The shell's address, token and all. */
+  /** Desktop's address, token and all. */
   url: string;
   /** Whether the app started it: then it stops it as it quits. One started elsewhere is left running. */
   owned: boolean;
-  /** Stopped, and all it started (tasks, the apps' servers): what it does on SIGTERM. */
+  /** Stopped, and all it started (tasks, their pages): what it does on SIGTERM. */
   stop(): Promise<void>;
 };
 

@@ -113,7 +113,7 @@ export function createTaskOptions(current: () => Task | undefined, ready: () => 
       }),
     );
   }
-  /** The harnesses this app may use: those the shell's Processors give it, the person's pick kept while it is one. */
+  /** The harnesses Desktop may use: those Processors in Settings give it, the person's pick kept while it is one. */
   function harnessRow(list: { id: string; name: string }[]) {
     const s = byId<HTMLSelectElement>('harness'),
       was = s.value;

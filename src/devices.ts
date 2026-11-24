@@ -1,11 +1,11 @@
 // The person's other devices, paired with this core: a phone, a tablet, another computer's browser. The person makes a
 // code on this computer (six digits, for ten minutes); the device opens the core's pairing page, at its address on their
 // private network, types it, and is given a token of its own, which it keeps in the page's address, never in a cookie (a
-// browser sends a host's cookies to every port on it, so to every app). Only its hash is kept here, so the devices file
+// browser sends a host's cookies to every port on it, so to every page of the core's). Only its hash is kept here, so the devices file
 // opens nothing. A code takes five tries; a device can be removed, and then its token opens nothing. Each device may give
 // its push subscription, for notifications when no page of the person's is open (push.ts). A code made for an owner pairs
-// one of the person's owner devices, which may set what each app may use (Processors) as this computer does: for a core
-// no one sits at (a Pi), it is made there, on its command line (main.ts --pair --owner), or on this computer's Phone.
+// one of the person's owner devices, which may set what Vindu may use (Processors) as this computer does: for a core
+// no one sits at (a Pi), it is made there, on its command line (main.ts --pair --owner), or under Phone in its Settings.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import type { PushSubscription } from './push.js';

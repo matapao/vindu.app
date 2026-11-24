@@ -28,6 +28,7 @@ and full commit SHAs in [dependencies.json](dependencies.json). The build verifi
 
 A host supplies its processors and task connection through `startApp({ processors, connect })` in `src/app.ts`.
 This connection is required to send a prompt. The host owns the account, model and conversation.
+In Desktop, Settings (in Activity's head) ticks which processors it may use and sets its daily budget.
 For a layout-only coordinator, register the open task’s `ui.layoutMcpServer` with its MCP client.
 It exposes pane geometry without sharing pane contents.
 

@@ -42,7 +42,7 @@ const transport = {
   // the connector keys' page: a tab of its own, on an origin of its own, so no other page reaches the keys
   keys: () => { const tab = window.open('', 'vindu-keys'); return s.invoke('keys:open').then((url: string) => { if (tab) { try { if (tab.location.href === 'about:blank') tab.location.href = url; } catch { /* open already */ } tab.focus(); } }); },
   folder: invoke('settings:folder'), pickFolder: invoke('pick:folder'), pickFiles: invoke('pick:files'),
-  processors: invoke('app:processors'), onProcessors: on('processors'), // the harnesses this app may use: the shell's Processors give them
+  processors: invoke('app:processors'), onProcessors: on('processors'), // the harnesses Desktop may use, as Processors in Settings give them
   inference: invoke('settings:inference'), onAppNote: on('app-note'),
   branch: invoke('task:branch'), onMenu: on('menu'),
   activity: invoke('activity:list'), restoreActivity: invoke('activity:restore'), onUser: on('user'), pinTask: invoke('activity:pin'), muteTask: invoke('activity:mute'), onActivity: on('activity'), onFront: on('front'),
@@ -50,6 +50,10 @@ const transport = {
   mode: invoke('task:mode'), pin: invoke('task:pin'), arrangement: invoke('task:arrangement'), letModelChange: invoke('task:let-model-change'),
   selection: invoke('task:selection'), exportTask: invoke('task:export'),
   captureFile: invoke('capture:file'), captureSkip: invoke('capture:skip'), onCaptures: on('captures'), phone: invoke('phone:toggle'),
+  settingsState: invoke('settings:state'), settingsProcessors: invoke('settings:processors'), settingsGrant: invoke('settings:grant'),
+  settingsBudget: invoke('settings:budget'), settingsSetBudget: invoke('settings:set-budget'),
+  settingsPhone: invoke('settings:phone'), settingsPhoneServe: invoke('settings:phone-serve'), settingsPhoneCode: invoke('settings:phone-code'),
+  settingsPhoneRemove: invoke('settings:phone-remove'), settingsDevice: invoke('settings:device'), settingsPush: invoke('settings:push'),
   create: invoke('task:create'),
   prompt: invoke('task:prompt'),
   set: invoke('task:set'), cancel: invoke('task:cancel'), reveal: invoke('task:reveal'),

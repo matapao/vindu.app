@@ -1,8 +1,8 @@
 // The core's network side (network.ts), with a Tailscale of the test's own (its command line, which changes nothing) and a
 // push service of its own: the core serves its pages on the tailnet only once the person turns it on, each at its own
-// port and the keys page never, and takes them back; a device pairs by a code made on this computer, and opens the shell
-// at its own token, never in a cookie; the shell gives it each app at the tailnet's name, and Desktop's page lets only
-// the shell frame it; what needs the person reaches the device as a notification encrypted for it alone (RFC 8291),
+// port and the keys page never, and takes them back; a device pairs by a code made on this computer, and opens Desktop
+// at its own token, never in a cookie, where no page may frame it; what needs the person reaches the device as a
+// notification encrypted for it alone (RFC 8291),
 // signed with the core's own keys (VAPID). Synthetic only.
 import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -115,7 +115,7 @@ const asTailnet = (port: number, pathname: string, o: { method?: string; body?: 
   });
   r.on('error', no); if (o.body) r.write(o.body); r.end();
 });
-/** The shell's socket, as a page would open it, from where it is (its Host and Origin): the calls it answers. at: the
+/** Desktop's socket, as a page would open it, from where it is (its Host and Origin): the calls it answers. at: the
  *  address it connects to (this computer's loopback, or the Wi-Fi's forwarder's). */
 async function socketAs(port: number, pathname: string, host: string, origin: string, at = '127.0.0.1', tls?: ReturnType<typeof makeLanIdentity>) {
   const sock = await new Promise<import('node:net').Socket>((ok, no) => {
@@ -145,96 +145,91 @@ async function socketAs(port: number, pathname: string, host: string, origin: st
   return { closed, call: (ch: string, ...args: unknown[]) => new Promise<unknown>((ok, no) => { const id = ++n; waiting.set(id, m => (m.e ? no(new Error(m.e)) : ok(m.v))); send(JSON.stringify({ t: 'call', id, ch, a: args })); }), close: () => sock.destroy(), events };
 }
 
-test('the core goes on the tailnet only when the person turns it on: the shell and Desktop at their own ports, the keys page never, and back off', async () => {
-  const shellPort = a.shell.page.port, deskPort = a.desktop.port;
-  assert.equal((await asTailnet(shellPort, `/${a.shell.page.token}/`)).status, 421); // not served: the tailnet's name opens nothing
+test('the core goes on the tailnet only when the person turns it on: Desktop at its port, the keys page never, and back off', async () => {
+  const deskPort = a.desktop.port, token = a.desktop.token;
+  assert.equal((await asTailnet(deskPort, `/${token}/`)).status, 421); // not served: the tailnet's name opens nothing
   assert.ok(!fs.existsSync(calls) || !fs.readFileSync(calls, 'utf8').includes('--bg'));
-  const here = await socketAs(shellPort, `/${a.shell.page.token}/socket`, `127.0.0.1:${shellPort}`, `http://127.0.0.1:${shellPort}`);
-  const r = await here.call('shell:phone-serve', true) as { ok: boolean; state: { serving: boolean; address: string } };
-  assert.ok(r.ok && r.state.serving); assert.equal(r.state.address, `https://${HOST}:${shellPort}`);
+  const here = await socketAs(deskPort, `/${token}/socket`, `127.0.0.1:${deskPort}`, `http://127.0.0.1:${deskPort}`);
+  const r = await here.call('settings:phone-serve', true) as { ok: boolean; state: { serving: boolean; address: string } };
+  assert.ok(r.ok && r.state.serving); assert.equal(r.state.address, `https://${HOST}:${deskPort}`);
   const served = fs.readFileSync(calls, 'utf8').trim().split('\n').map(l => JSON.parse(l) as string[]).filter(c => c.includes('--bg'));
-  assert.deepEqual(served, [['serve', '--bg', `--https=${shellPort}`, `http://127.0.0.1:${shellPort}`], ['serve', '--bg', `--https=${deskPort}`, `http://127.0.0.1:${deskPort}`]]);
+  assert.deepEqual(served, [['serve', '--bg', `--https=${deskPort}`, `http://127.0.0.1:${deskPort}`]]);
   assert.ok(!fs.readFileSync(calls, 'utf8').includes('funnel'));
-  assert.equal((await asTailnet(shellPort, `/${a.shell.page.token}/`)).status, 404); // its name is served now, but only a paired device's token opens anything there
-  // a device pairs by the code made here, and opens the shell at its own token
-  const { code } = await here.call('shell:phone-code') as { code: string };
-  assert.equal((await asTailnet(shellPort, '/pair', { method: 'POST', origin: 'https://evil.example', body: JSON.stringify({ code, name: 'x' }) })).status, 403);
-  const paired = await asTailnet(shellPort, '/pair', { method: 'POST', origin: `https://${HOST}:${shellPort}`, body: JSON.stringify({ code, name: 'My phone' }) });
+  assert.equal((await asTailnet(deskPort, `/${token}/`)).status, 404); // its name is served now, but only a paired device's token opens anything there
+  // a device pairs by the code made here, and opens Desktop at its own token
+  const { code } = await here.call('settings:phone-code') as { code: string };
+  assert.equal((await asTailnet(deskPort, '/pair', { method: 'POST', origin: 'https://evil.example', body: JSON.stringify({ code, name: 'x' }) })).status, 403);
+  const paired = await asTailnet(deskPort, '/pair', { method: 'POST', origin: `https://${HOST}:${deskPort}`, body: JSON.stringify({ code, name: 'My phone' }) });
   assert.equal(paired.status, 200);
   const at = (JSON.parse(paired.body) as { url: string }).url; assert.match(at, /^\/[\w-]{20,}\/$/);
   assert.equal(paired.headers['set-cookie'], undefined); // never in a cookie
-  const page = await asTailnet(shellPort, at); assert.equal(page.status, 200);
+  const page = await asTailnet(deskPort, at); assert.equal(page.status, 200);
   assert.match(String(page.headers['content-security-policy']), new RegExp(`frame-src [^;]*https://${HOST.replace(/\./g, '\\.')}:\\*`));
-  const phone = await socketAs(shellPort, `${at}socket`, `${HOST}:${shellPort}`, `https://${HOST}:${shellPort}`);
-  assert.equal(((await phone.call('shell:state')) as { device: string }).device.length > 0, true);
-  const desk = await phone.call('shell:open', 'desktop') as string;
-  assert.equal(desk, `https://${HOST}:${deskPort}${at}`); // Desktop, as the phone reaches it: at the device's own token, never Desktop's
-  assert.equal((await asTailnet(deskPort, at)).status, 200); assert.equal((await asTailnet(deskPort, `/${a.desktop.token}/`)).status, 404);
-  await assert.rejects(phone.call('shell:phone-code'), /set up on the computer/); // a device makes no codes
-  // what each app may use is set here, or on an owner device: not on this one, whatever its page shows or calls
-  assert.equal(((await phone.call('shell:state')) as { setsUp: boolean }).setsUp, false);
-  for (const [ch, ...args] of [['shell:processors'], ['shell:grant', 'desktop', 'codex', true], ['shell:budgets'], ['shell:budget', 'desktop', { tokens: 1 }]] as [string, ...unknown[]][])
+  const phone = await socketAs(deskPort, `${at}socket`, `${HOST}:${deskPort}`, `https://${HOST}:${deskPort}`);
+  assert.equal(((await phone.call('settings:state')) as { device: string }).device.length > 0, true);
+  await assert.rejects(phone.call('settings:phone-code'), /set up on the computer/); // a device makes no codes
+  await assert.rejects(phone.call('pty:new', 'unopened'), /set up on the computer/);
+  await assert.rejects(phone.call('task:create', { id: 'new', harness: 'claude', folder: 'unpicked' }), /Choose the working folder/);
+  // what Vindu may use is set here, or on an owner device: not on this one, whatever its page shows or calls
+  assert.equal(((await phone.call('settings:state')) as { setsUp: boolean }).setsUp, false);
+  for (const [ch, ...args] of [['settings:processors'], ['settings:grant', 'codex', true], ['settings:budget'], ['settings:set-budget', { tokens: 1 }]] as [string, ...unknown[]][])
     await assert.rejects(phone.call(ch, ...args), /set on the computer vindu runs on, or on a device paired as its owner/, ch);
   // an owner's code, made here, pairs one that may: it sets Processors as this computer does, and is listed as an owner
-  const owner = await here.call('shell:phone-code', { owner: true }) as { code: string; owner: boolean };
+  const owner = await here.call('settings:phone-code', { owner: true }) as { code: string; owner: boolean };
   assert.equal(owner.owner, true);
-  const laptopAt = (JSON.parse((await asTailnet(shellPort, '/pair', { method: 'POST', origin: `https://${HOST}:${shellPort}`, body: JSON.stringify({ code: owner.code, name: 'My laptop' }) })).body) as { url: string }).url;
-  const laptop = await socketAs(shellPort, `${laptopAt}socket`, `${HOST}:${shellPort}`, `https://${HOST}:${shellPort}`);
-  assert.equal(((await laptop.call('shell:state')) as { setsUp: boolean }).setsUp, true);
-  assert.ok(((await laptop.call('shell:grant', 'desktop', 'codex', false)) as Record<string, string[]>).desktop.every(g => g !== 'codex'));
-  assert.ok(Array.isArray(await laptop.call('shell:budgets')));
-  await assert.rejects(laptop.call('shell:phone-code'), /set up on the computer/); // an owner sets Processors, not who else pairs
-  await laptop.call('shell:grant', 'desktop', 'codex', true);
-  const listed = ((await here.call('shell:phone')) as { devices: { id: string; name: string; owner?: boolean }[] }).devices;
+  const laptopAt = (JSON.parse((await asTailnet(deskPort, '/pair', { method: 'POST', origin: `https://${HOST}:${deskPort}`, body: JSON.stringify({ code: owner.code, name: 'My laptop' }) })).body) as { url: string }).url;
+  const laptop = await socketAs(deskPort, `${laptopAt}socket`, `${HOST}:${deskPort}`, `https://${HOST}:${deskPort}`);
+  assert.equal(((await laptop.call('settings:state')) as { setsUp: boolean }).setsUp, true);
+  assert.ok(((await laptop.call('settings:grant', 'codex', false)) as string[]).every(g => g !== 'codex'));
+  assert.equal(typeof ((await laptop.call('settings:budget')) as { limits: unknown }).limits, 'object');
+  await assert.rejects(laptop.call('settings:phone-code'), /set up on the computer/); // an owner sets Processors, not who else pairs
+  await laptop.call('settings:grant', 'codex', true);
+  const listed = ((await here.call('settings:phone')) as { devices: { id: string; name: string; owner?: boolean }[] }).devices;
   assert.deepEqual(listed.map(d => [d.name, !!d.owner]), [['My phone', false], ['My laptop', true]]);
-  await here.call('shell:phone-remove', listed[1].id);
+  await here.call('settings:phone-remove', listed[1].id);
   await laptop.closed;
-  assert.equal(((await phone.call('shell:state')) as { device: string }).device, listed[0].id);
-  const workspace = await socketAs(deskPort, `${at}socket`, `${HOST}:${deskPort}`, `https://${HOST}:${deskPort}`);
-  await assert.rejects(workspace.call('pty:new', 'unopened'), /set up on the computer/);
-  await assert.rejects(workspace.call('task:create', { id: 'new', harness: 'claude', folder: 'unpicked' }), /Choose the working folder/);
+  assert.equal(((await phone.call('settings:state')) as { device: string }).device, listed[0].id);
 
-  // Desktop's page lets the shell frame it, here and on the tailnet; the keys page lets no one
-  const dp = await asTailnet(deskPort, at);
-  assert.match(String(dp.headers['content-security-policy']), new RegExp(`frame-ancestors http://localhost:${shellPort} http://127.0.0.1:${shellPort} https://${HOST.replace(/\./g, '\\.')}:${shellPort}`));
-  assert.equal(dp.headers['x-frame-options'], undefined);
+  // Desktop's page lets no page frame it, here or on the tailnet; the keys page is never on the tailnet
+  assert.match(String(page.headers['content-security-policy']), /frame-ancestors 'none'/);
+  assert.equal(page.headers['x-frame-options'], 'DENY');
   const keys = new URL(await a.openKeys());
   assert.equal((await asTailnet(Number(keys.port), keys.pathname)).status, 421); // never on the tailnet
   // its notifications: a subscription of its own, and a notice here when the person is not looking reaches it
   const d = deviceKeys();
-  assert.equal(await phone.call('shell:push', d.sub), true);
+  assert.equal(await phone.call('settings:push', d.sub), true);
   a.notify('no-task', { what: 'Call the bank', state: 'due' } as never);
   await new Promise(r => setTimeout(r, 300));
   const p = pushed.at(-1)!;
   assert.equal(p.endpoint, d.sub.endpoint); assert.equal(p.headers['Content-Encoding'], 'aes128gcm');
-  checkVapid(p.headers.Authorization, d.sub.endpoint, ((await here.call('shell:phone')) as { push: { key: string } }).push.key);
+  checkVapid(p.headers.Authorization, d.sub.endpoint, ((await here.call('settings:phone')) as { push: { key: string } }).push.key);
   assert.deepEqual(JSON.parse(d.open(p.body)), { title: 'Reminder', body: 'Call the bank', tag: 'desktop:no-task' });
   // removed, the device opens nothing; and the core comes off the tailnet when the person says
-  const id = ((await here.call('shell:phone')) as { devices: { id: string }[] }).devices[0].id;
-  await here.call('shell:phone-remove', id);
-  await Promise.all([workspace.closed, phone.closed]);
-  assert.equal((await asTailnet(shellPort, at)).status, 404); assert.equal((await asTailnet(deskPort, at)).status, 404); // removed: every page of the core's closed to it
-  const off = await here.call('shell:phone-serve', false) as { state: { serving: boolean } };
+  const id = ((await here.call('settings:phone')) as { devices: { id: string }[] }).devices[0].id;
+  await here.call('settings:phone-remove', id);
+  await phone.closed;
+  assert.equal((await asTailnet(deskPort, at)).status, 404); // removed: every page of the core's closed to it
+  const off = await here.call('settings:phone-serve', false) as { state: { serving: boolean } };
   assert.equal(off.state.serving, false);
   const offs = fs.readFileSync(calls, 'utf8').trim().split('\n').map(l => JSON.parse(l) as string[]).filter(c => c.at(-1) === 'off');
-  assert.deepEqual(offs.map(c => c[1]), [`--https=${shellPort}`, `--https=${deskPort}`]);
-  assert.equal((await asTailnet(shellPort, `/${a.shell.page.token}/`)).status, 421);
+  assert.deepEqual(offs.map(c => c[1]), [`--https=${deskPort}`]);
+  assert.equal((await asTailnet(deskPort, `/${token}/`)).status, 421);
   here.close(); phone.close();
 });
 
 test('a desktop app on another computer, paired, gives the core its link: a page the person opens lives in that app', async () => {
-  const shellPort = a.shell.page.port, deskPort = a.desktop.port;
-  const here = await socketAs(shellPort, `/${a.shell.page.token}/socket`, `127.0.0.1:${shellPort}`, `http://127.0.0.1:${shellPort}`);
-  const { code } = await here.call('shell:phone-code') as { code: string };
+  const deskPort = a.desktop.port;
+  const here = await socketAs(deskPort, `/${a.desktop.token}/socket`, `127.0.0.1:${deskPort}`, `http://127.0.0.1:${deskPort}`);
+  const { code } = await here.call('settings:phone-code') as { code: string };
   const paired = JSON.parse((await new Promise<string>((ok, no) => { // pairing, as the app does it, at this computer's own name in a test
-    const r = http.request({ host: '127.0.0.1', port: shellPort, path: '/pair', method: 'POST', headers: { host: `localhost:${shellPort}`, origin: `http://localhost:${shellPort}`, 'content-type': 'application/json' } }, res => { let b = ''; res.on('data', d => { b += d; }); res.on('end', () => ok(b)); });
+    const r = http.request({ host: '127.0.0.1', port: deskPort, path: '/pair', method: 'POST', headers: { host: `localhost:${deskPort}`, origin: `http://localhost:${deskPort}`, 'content-type': 'application/json' } }, res => { let b = ''; res.on('data', d => { b += d; }); res.on('end', () => ok(b)); });
     r.on('error', no); r.end(JSON.stringify({ code, name: 'The laptop' }));
   }))) as { url: string };
   const device = paired.url.split('/')[1];
   // the other computer's app: its link at its own token, its window, and what the core asks of it
   const asked: { m: string; partition?: string }[] = [];
   const link = await new Promise<import('node:net').Socket>((ok, no) => {
-    const r = http.request({ host: '127.0.0.1', port: shellPort, path: `/${device}/frame`, headers: { host: `localhost:${shellPort}`, connection: 'Upgrade', upgrade: 'websocket', 'sec-websocket-version': '13', 'sec-websocket-key': crypto.randomBytes(16).toString('base64') } });
+    const r = http.request({ host: '127.0.0.1', port: deskPort, path: `/${device}/frame`, headers: { host: `localhost:${deskPort}`, connection: 'Upgrade', upgrade: 'websocket', 'sec-websocket-version': '13', 'sec-websocket-key': crypto.randomBytes(16).toString('base64') } });
     r.on('upgrade', (_res, s) => ok(s)); r.on('response', res => no(new Error(`refused: ${res.statusCode}`))); r.on('error', no); r.end();
   });
   const out = (m: unknown) => { const data = Buffer.from(JSON.stringify(m)), mask = crypto.randomBytes(4), n = data.length; link.write(Buffer.concat([n < 126 ? Buffer.from([0x81, 0x80 | n]) : Buffer.from([0x81, 0x80 | 126, n >> 8, n & 255]), mask, Buffer.from(data.map((b, i) => b ^ mask[i & 3]))])); };
@@ -253,7 +248,7 @@ test('a desktop app on another computer, paired, gives the core its link: a page
   });
   out({ ev: 'windows', keys: ['laptop-window-1'] });
   // a task, and the person's own page in it, from Desktop's page
-  const desk = await socketAs(deskPort, `/${a.desktop.token}/socket`, `127.0.0.1:${deskPort}`, `http://127.0.0.1:${deskPort}`);
+  const desk = here;
   const t = await desk.call('task:create', { id: 'remote-1', harness: 'claude', title: 'A page elsewhere' }) as { id: string };
   void desk.call('browser:new', t.id, 'about:blank').catch(() => undefined); // the page's own loading is the app's: here, where it opens
   const end = Date.now() + 5000; while (!asked.some(x => x.m === 'cdp') && Date.now() < end) await new Promise(r => setTimeout(r, 50));
@@ -261,7 +256,7 @@ test('a desktop app on another computer, paired, gives the core its link: a page
   assert.ok(asked.some(x => x.m === 'cdp'), 'driven over the DevTools protocol, through the link');
   link.destroy(); // the other computer's app goes: what was open there is gone with it
   await Promise.race([desk.call('task:close', t.id), new Promise(r => setTimeout(r, 3000))]);
-  here.close(); desk.close();
+  here.close();
 });
 
 /** A request through the TLS forwarder on the test Wi-Fi or directly to the local backend. */
@@ -279,54 +274,51 @@ test('on the Wi-Fi, once on there: each page at its own port over HTTPS, a paire
   let tls: ReturnType<typeof makeLanIdentity> | undefined;
   const w = await startApp({ userData, port: 17800, home: tmp('lan-home-'), tailscale: null, lanAddresses: () => [A], lanName: WIFI,
     processors, connect: connectConsumer });
-  const shellPort = w.shell.page.port, deskPort = w.desktop.port, token = w.shell.page.token;
+  const deskPort = w.desktop.port, token = w.desktop.token;
   let ask = wifiRequests(tls);
-  /** The person's own command here, as main.ts gives it: the shell's token, this computer's name, no page's origin. */
-  const control = async (q: Record<string, unknown>) => JSON.parse((await ask('127.0.0.1', shellPort, `/${token}/control`, { host: `127.0.0.1:${shellPort}`, method: 'POST', body: JSON.stringify(q) })).body) as Record<string, any>;
+  /** The person's own command here, as main.ts gives it: Desktop's token, this computer's name, no page's origin. */
+  const control = async (q: Record<string, unknown>) => JSON.parse((await ask('127.0.0.1', deskPort, `/${token}/control`, { host: `127.0.0.1:${deskPort}`, method: 'POST', body: JSON.stringify(q) })).body) as Record<string, any>;
   const refused = (port: number) => ask(A, port, '/').then(() => false, (e: NodeJS.ErrnoException) => e.code === 'ECONNREFUSED');
   try {
     // off, by default (a Mac's core): nothing listens on the Wi-Fi, and its name opens nothing here
-    assert.ok(await refused(shellPort));
-    assert.equal((await ask('127.0.0.1', shellPort, `/${token}/`)).status, 421);
+    assert.ok(await refused(deskPort));
+    assert.equal((await ask('127.0.0.1', deskPort, `/${token}/`)).status, 421);
     assert.match(String((await control({ do: 'lan', on: true })).error), /TLS certificate/);
-    assert.ok(await refused(shellPort));
-    assert.equal((await ask('127.0.0.1', shellPort, `/${token}/`, { host: `127.0.0.1:${shellPort}` })).status, 200);
+    assert.ok(await refused(deskPort));
+    assert.equal((await ask('127.0.0.1', deskPort, `/${token}/`, { host: `127.0.0.1:${deskPort}` })).status, 200);
     tls = makeLanIdentity(userData);
     ask = wifiRequests(tls);
     const on = await control({ do: 'lan', on: true });
     assert.equal(on.ok, true);
-    assert.equal(on.state.lan.address, `https://${WIFI}:${shellPort}`);
+    assert.equal(on.state.lan.address, `https://${WIFI}:${deskPort}`);
     // An old HTTP link cannot send a request through this listener. Exercise it without any credentials.
-    await assert.rejects(new Promise((ok, no) => http.get({ host: A, port: shellPort, path: '/pair' }, ok).on('error', no)));
-    assert.equal((await ask(A, shellPort, '*')).status, 400);
-    await assert.rejects(socketAs(shellPort, '*', `${WIFI}:${shellPort}`, `https://${WIFI}:${shellPort}`, A, tls), /400/);
+    await assert.rejects(new Promise((ok, no) => http.get({ host: A, port: deskPort, path: '/pair' }, ok).on('error', no)));
+    assert.equal((await ask(A, deskPort, '*')).status, 400);
+    await assert.rejects(socketAs(deskPort, '*', `${WIFI}:${deskPort}`, `https://${WIFI}:${deskPort}`, A, tls), /400/);
     // through the forwarder: by the Wi-Fi's names alone, and the core's own token never; localhost's name turned away
-    assert.equal((await ask(A, shellPort, `/${token}/`)).status, 404);
-    assert.equal((await ask(A, shellPort, `/${token}/`, { host: `localhost:${shellPort}` })).status, 421);
-    assert.equal((await ask(A, shellPort, `/${token}/`, { host: `127.0.0.1:${shellPort}` })).status, 421);
-    assert.equal((await ask(A, shellPort, '/pair', { host: `[${A}]:${shellPort}` })).status, 200); // its address is one of its names there
+    assert.equal((await ask(A, deskPort, `/${token}/`)).status, 404);
+    assert.equal((await ask(A, deskPort, `/${token}/`, { host: `localhost:${deskPort}` })).status, 421);
+    assert.equal((await ask(A, deskPort, `/${token}/`, { host: `127.0.0.1:${deskPort}` })).status, 421);
+    assert.equal((await ask(A, deskPort, '/pair', { host: `[${A}]:${deskPort}` })).status, 200); // its address is one of its names there
     // a device pairs by a code made here, from the pairing page's own origin (HTTPS, at the Wi-Fi's name)
     const made = await control({ do: 'code' });
-    assert.equal(made.lanAt, `https://${WIFI}:${shellPort}/pair`); assert.equal(made.at, null);
-    assert.equal((await ask(A, shellPort, '/pair', { method: 'POST', origin: `http://${WIFI}:${shellPort}`, body: JSON.stringify({ code: made.code, name: 'x' }) })).status, 403);
-    const paired = await ask(A, shellPort, '/pair', { method: 'POST', origin: `https://${WIFI}:${shellPort}`, body: JSON.stringify({ code: made.code, name: 'The phone' }) });
+    assert.equal(made.lanAt, `https://${WIFI}:${deskPort}/pair`); assert.equal(made.at, null);
+    assert.equal((await ask(A, deskPort, '/pair', { method: 'POST', origin: `http://${WIFI}:${deskPort}`, body: JSON.stringify({ code: made.code, name: 'x' }) })).status, 403);
+    const paired = await ask(A, deskPort, '/pair', { method: 'POST', origin: `https://${WIFI}:${deskPort}`, body: JSON.stringify({ code: made.code, name: 'The phone' }) });
     assert.equal(paired.status, 200);
     const at = (JSON.parse(paired.body) as { url: string }).url;
-    const page = await ask(A, shellPort, at); assert.equal(page.status, 200);
+    const page = await ask(A, deskPort, at); assert.equal(page.status, 200);
     assert.match(String(page.headers['content-security-policy']), new RegExp(`frame-src [^;]*https://${WIFI.replace(/\./g, '\\.')}:\\*`));
-    assert.match(String(page.headers['content-security-policy']), new RegExp(`connect-src [^;]*wss://${WIFI.replace(/\./g, '\\.')}:${shellPort}`));
-    // its socket, through the forwarder: from another device, so it sets nothing up, and the apps open at the Wi-Fi's name, over HTTPS
-    await assert.rejects(socketAs(shellPort, `${at}socket`, `${WIFI}:${shellPort}`, `http://evil.example`, A, tls));
-    const phone = await socketAs(shellPort, `${at}socket`, `${WIFI}:${shellPort}`, `https://${WIFI}:${shellPort}`, A, tls);
-    const s = await phone.call('shell:state') as { away: boolean; setsUp: boolean; device: string };
+    assert.match(String(page.headers['content-security-policy']), new RegExp(`connect-src [^;]*wss://${WIFI.replace(/\./g, '\\.')}:${deskPort}`));
+    // its socket, through the forwarder: from another device, so it sets nothing up
+    await assert.rejects(socketAs(deskPort, `${at}socket`, `${WIFI}:${deskPort}`, `http://evil.example`, A, tls));
+    const phone = await socketAs(deskPort, `${at}socket`, `${WIFI}:${deskPort}`, `https://${WIFI}:${deskPort}`, A, tls);
+    const s = await phone.call('settings:state') as { away: boolean; setsUp: boolean; device: string };
     assert.equal(s.away, true); assert.equal(s.setsUp, false); assert.ok(s.device);
-    assert.equal(await phone.call('shell:open', 'desktop'), `https://${WIFI}:${deskPort}${at}`);
-    await assert.rejects(phone.call('shell:phone-code'), /set up on the computer/);
-    await assert.rejects(phone.call('shell:processors'), /set on the computer vindu runs on, or on a device paired as its owner/);
-    // Desktop's page, at the device's token, which only the shell may frame (here, and at the Wi-Fi's name)
-    const desk = await ask(A, deskPort, at);
-    assert.equal(desk.status, 200);
-    assert.match(String(desk.headers['content-security-policy']), new RegExp(`frame-ancestors [^;]*https://${WIFI.replace(/\./g, '\\.')}:${shellPort}`));
+    await assert.rejects(phone.call('settings:phone-code'), /set up on the computer/);
+    await assert.rejects(phone.call('settings:processors'), /set on the computer vindu runs on, or on a device paired as its owner/);
+    // Desktop's page, at the device's token, which no page may frame; its own token opens nothing there
+    assert.match(String(page.headers['content-security-policy']), /frame-ancestors 'none'/);
     assert.equal((await ask(A, deskPort, `/${w.desktop.token}/`)).status, 404);
     // the keys page is on no network: nothing listens for it on the Wi-Fi
     assert.ok(await refused(Number(new URL(await w.openKeys()).port)));
@@ -334,8 +326,8 @@ test('on the Wi-Fi, once on there: each page at its own port over HTTPS, a paire
     // off again: the forwarder gone, and the Wi-Fi's name opens nothing here
     const off = await control({ do: 'lan', on: false });
     assert.equal(off.state.lan.on, false);
-    assert.ok(await refused(shellPort)); assert.ok(await refused(deskPort));
-    assert.equal((await ask('127.0.0.1', shellPort, at)).status, 421);
+    assert.ok(await refused(deskPort));
+    assert.equal((await ask('127.0.0.1', deskPort, at)).status, 421);
   } finally { await w.close(); }
 });
 
@@ -346,9 +338,9 @@ test("on the Wi-Fi, a task's page reaches a paired device through a door of its 
   const w = await startApp({ userData, port: 17820, home: tmp('doors-home-'), tailscale: null, lanAddresses: () => [A], lanName: WIFI,
     pageBrowser: () => Promise.reject(new Error("browserType.launch: Executable doesn't exist at /nowhere/headless_shell")),
     processors, connect: connectConsumer });
-  const shellPort = w.shell.page.port, deskPort = w.desktop.port, token = w.shell.page.token;
+  const deskPort = w.desktop.port, token = w.desktop.token;
   const ask = wifiRequests(tls);
-  const control = async (q: Record<string, unknown>) => JSON.parse((await ask('127.0.0.1', shellPort, `/${token}/control`, { host: `127.0.0.1:${shellPort}`, method: 'POST', body: JSON.stringify(q) })).body) as Record<string, any>;
+  const control = async (q: Record<string, unknown>) => JSON.parse((await ask('127.0.0.1', deskPort, `/${token}/control`, { host: `127.0.0.1:${deskPort}`, method: 'POST', body: JSON.stringify(q) })).body) as Record<string, any>;
   const until = async (f: () => boolean | Promise<boolean>, what: string) => { const end = Date.now() + 10_000; while (!(await f())) { if (Date.now() > end) throw new Error(`waited for ${what}`); await new Promise(r => setTimeout(r, 50)); } };
   const findFile = (dir: string, name: string): string | undefined => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isFile() && e.name === name) return p; if (e.isDirectory()) { const f = findFile(p, name); if (f) return f; } }
@@ -357,7 +349,7 @@ test("on the Wi-Fi, a task's page reaches a paired device through a door of its 
   try {
     await control({ do: 'lan', on: true });
     const made = await control({ do: 'code' });
-    const paired = await ask(A, shellPort, '/pair', { method: 'POST', origin: `https://${WIFI}:${shellPort}`, body: JSON.stringify({ code: made.code, name: 'The phone' }) });
+    const paired = await ask(A, deskPort, '/pair', { method: 'POST', origin: `https://${WIFI}:${deskPort}`, body: JSON.stringify({ code: made.code, name: 'The phone' }) });
     const at = (JSON.parse(paired.body) as { url: string }).url;
     // Desktop's page on the phone may frame, and show, what comes from the core's names on the Wi-Fi
     const deskThere = await ask(A, deskPort, at);

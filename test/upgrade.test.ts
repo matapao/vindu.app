@@ -35,7 +35,6 @@ test('upgrading revokes previously logged local links, redacts old records and p
     app = await startApp(options);
     assert.equal((await fetch(new URL('/' + old.desktop + '/', app.desktop.url))).status, 404);
     assert.equal((await fetch(app.desktop.url)).status, 200);
-    assert.deepEqual(new URL(app.shell.url).pathname, '/' + old.shell + '/');
     assert.equal(keptToken(file, 'keys'), old.keys);
     const nextNote = keptToken(file, 'app:notes'); // also revoked when the old log was previously rotated
     assert.notEqual(nextNote, old['app:notes']);

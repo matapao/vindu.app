@@ -81,6 +81,28 @@
     #pin-name { width: 140px; padding: 2px 6px; border: 1px solid var(--v-line); border-radius: 5px; background: var(--v-pane); }
     #opens { display: inline-flex; }
     #phone[aria-pressed="true"] { color: var(--v-accent); }
+    /* Settings, in Activity's column in place of the tasks and the composer: Processors and Phone */
+    #side:has(#setup:not([hidden])) > :not(#head, #setup) { display: none !important; }
+    #setup-open[aria-pressed="true"] { color: var(--v-accent); }
+    #setup { flex: 1; min-height: 0; overflow: auto; padding: 4px 14px 18px; font-size: 12px; scrollbar-width: thin; }
+    #setup-head { display: flex; align-items: center; gap: 8px; padding: 8px 0 2px; }
+    #setup-head div { flex: 1; min-width: 0; }
+    #setup-title { margin: 0; font-size: 14px; font-weight: 600; }
+    #setup h3 { margin: 16px 0 4px; font-size: 12px; font-weight: 600; }
+    #setup p { margin: 0 0 8px; color: var(--v-ink-2); overflow-wrap: anywhere; }
+    #setup #setup-host, #setup .muted, #setup-devices .when { color: var(--v-muted); }
+    #setup .box { margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--v-hair); border-radius: 8px; }
+    #setup-harnesses label, #setup label.owner { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+    #setup-limits { display: grid; gap: 6px; }
+    #setup-limits label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #setup-limits input { width: 110px; padding: 3px 6px; border: 1px solid var(--v-line); border-radius: 5px; background: var(--v-pane); }
+    #setup #setup-spent.over { color: var(--bad); }
+    #setup-code { font: 600 20px ui-monospace, Menlo, monospace; letter-spacing: 4px; }
+    #setup .addr { font-family: ui-monospace, Menlo, monospace; }
+    #setup-devices { margin: 0; padding: 0; list-style: none; }
+    #setup-devices li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 3px 0; }
+    #setup-devices .when { flex: 1; }
+    #setup-note { padding: 6px 8px; border-radius: 6px; background: var(--v-wash); }
     #thread { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; scrollbar-width: thin; }
     .turns { display: flex; flex-direction: column; gap: 8px; }
     .you { align-self: flex-end; max-width: 88%; padding: 6px 10px; border-radius: 10px; background: var(--v-wash); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -211,7 +233,8 @@
       /* in a task: its title on a line of its own, then its views and its tools; the keys and the phone window are Activity's */
       #head:has(#back:not([hidden])) { padding: env(safe-area-inset-top) 8px 6px 4px; }
       #head:has(#back:not([hidden])) #heading { flex: 1 1 calc(100% - 48px); padding: 8px 0 4px; }
-      #head:has(#back:not([hidden])) :is(#connector-keys, #phone) { display: none; }
+      #head:has(#back:not([hidden])) :is(#setup-open, #connector-keys, #phone) { display: none; }
+      #setup { font-size: 14px; padding: 4px 16px 24px; } #setup h3 { font-size: 14px; } #setup-title { font-size: 16px; }
       #title { font-size: 15px; } #where { font-size: 12px; }
       .icon { width: 44px; height: 44px; border-radius: 12px; }
       .icon svg { width: 19px; height: 19px; }
@@ -281,9 +304,47 @@
         <button type="button" id="export" class="icon" title="Export the task as one archive: its record and the window's, each file with its digest"><svg viewBox="0 0 16 16"><path d="M8 2.5v8M5 7.5l3 3 3-3M3 12.5h10"/></svg></button>
         <button type="button" id="reveal" class="icon" title="Open the task's folder" hidden><svg viewBox="0 0 16 16"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg></button>
       </span>
+      <button type="button" id="setup-open" class="icon" aria-pressed="false" title="Settings: the processors Vindu may use, its day's budget, and your phone"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M3.6 12.4l1.3-1.3M11.1 4.9l1.3-1.3"/></svg></button>
       <button type="button" id="connector-keys" class="icon" title="Connector keys: each connector's and server's key, kept by this computer's keychain"><svg viewBox="0 0 16 16"><circle cx="5.5" cy="10.5" r="3"/><path d="M7.6 8.4 13.5 2.5M11 5l1.5 1.5M12.5 3.5 14 5"/></svg></button>
       <button type="button" id="phone" class="icon" aria-pressed="false" title="The phone window: the same views on your phone or tablet, off until you turn it on"><svg viewBox="0 0 16 16"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12.5h2"/></svg></button>
     </header>
+    <section id="setup" hidden aria-labelledby="setup-title">
+      <header id="setup-head"><div><h2 id="setup-title">Settings</h2><p id="setup-host"></p></div><button type="button" id="setup-done" class="btn">Done</button></header>
+      <p id="setup-note" role="status" hidden></p>
+      <section id="setup-processors" hidden aria-labelledby="setup-processors-title">
+        <h3 id="setup-processors-title">Processors</h3>
+        <p>The harnesses this computer has. Vindu uses only the ones ticked; you pick one of them for each task.</p>
+        <div id="setup-harnesses"></div>
+        <p id="setup-connectors" class="muted"></p>
+        <h3>Budget</h3>
+        <p>What Vindu may spend in a day, as its harnesses report it. Empty is no limit. Over it, no turn starts until tomorrow, and a turn that goes over is stopped.</p>
+        <p id="setup-spent"></p>
+        <div id="setup-limits">
+          <label>Tokens a day <input type="number" min="0" step="1" inputmode="numeric" data-limit="tokens" placeholder="no limit"></label>
+          <label>Cost a day <input type="number" min="0" step="0.01" inputmode="decimal" data-limit="cost" placeholder="no limit"></label>
+          <label>Minutes a day <input type="number" min="0" step="1" inputmode="numeric" data-limit="minutes" placeholder="no limit"></label>
+        </div>
+      </section>
+      <section id="setup-phone" aria-labelledby="setup-phone-title">
+        <h3 id="setup-phone-title">Phone</h3>
+        <div id="setup-away" hidden>
+          <p>This device is paired with vindu: <b id="setup-device-name"></b>. Add this page to the Home Screen, and vindu opens like an app.</p>
+          <div class="box"><p id="setup-push-state"></p><button type="button" id="setup-push" class="btn">Turn on notifications</button></div>
+        </div>
+        <div id="setup-here" hidden>
+          <div class="box"><p id="setup-here-state"></p><button type="button" id="setup-here-push" class="btn" hidden>Allow notifications</button></div>
+          <p>Your phone reaches vindu on this computer over your own private network, Tailscale, at an https address only your devices see. Nothing is on the internet.</p>
+          <div class="box"><p id="setup-tailnet"></p><button type="button" id="setup-serve" class="btn" hidden></button></div>
+          <div class="box" id="setup-pairing" hidden>
+            <p>On the phone, open <span class="addr" id="setup-pair-at"></span> and type this code:</p>
+            <p><span id="setup-code">——————</span> <span id="setup-code-until" class="muted"></span></p>
+            <button type="button" id="setup-new-code" class="btn">Make a code</button>
+            <label class="owner"><input id="setup-owner-code" type="checkbox"> For an owner device: it may change Processors, as this computer does</label>
+          </div>
+          <div class="box" id="setup-paired" hidden><p>Paired</p><ul id="setup-devices"></ul></div>
+        </div>
+      </section>
+    </section>
     <div id="viewbar" hidden>
       <span id="mode"></span>
       <button type="button" id="pin" class="tool" title="Keep this view as a template, to start a task like this with"><span>Pin this view…</span></button>

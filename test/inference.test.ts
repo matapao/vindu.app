@@ -36,7 +36,7 @@ test('a saved custom endpoint does not appear or start a harness', async () => {
   const app = await startApp({ userData: directory, home: directory, port: 17760, processors: [{ id: 'reports', name: 'Reports' }], connect() { connectRequests++; throw new Error('No consumer should be attached'); } });
   try {
     assert.deepEqual(await call(app.desktop.url, 'settings:inference'), []);
-    const { processors } = await call(app.shell.url, 'shell:processors') as { processors: { id: string }[] };
+    const { processors } = await call(app.desktop.url, 'settings:processors') as { processors: { id: string }[] };
     assert.deepEqual(processors.map(processor => processor.id).sort(), ['reports']);
     await assert.rejects(call(app.desktop.url, 'task:create', { id: 'old-model', harness: 'reports', inference: 'archive-model' }), /consumer configures its model endpoint/);
     assert.ok(!app.tasks.has('old-model'));
@@ -72,7 +72,7 @@ test('the default desktop advertises no processors and can host a detached task'
   fs.writeFileSync(path.join(directory, 'settings.json'), JSON.stringify({ jobs: { on: true } }));
   const app = await startApp({ userData: directory, home: directory, port: 17760 });
   try {
-    const { processors } = await call(app.shell.url, 'shell:processors') as { processors: unknown[] };
+    const { processors } = await call(app.desktop.url, 'settings:processors') as { processors: unknown[] };
     assert.deepEqual(processors, []);
     await call(app.desktop.url, 'task:create', { id: 'read-only' });
     const task = app.tasks.get('read-only')!;

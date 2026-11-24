@@ -1,4 +1,4 @@
-// The window where the person adds a core elsewhere: its address, and the code made under Phone there. A form and nothing
+// The window where the person adds a core elsewhere: its address, and the code made under Phone in Settings there. A form and nothing
 // else: no script, no preload, no way to the app but the address it is sent to (vindu-add:), which the app takes before
 // anything loads (main.ts), pairs with (cores.ts), and answers by drawing the form again with what happened.
 const esc = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
@@ -19,7 +19,7 @@ export function addCorePage(o: { address?: string; name?: string; said?: string;
   .said { padding: 8px 10px; border-radius: 6px; background: light-dark(#f6f5f1, #151514); margin: 0 0 12px; } .bad { color: #d70015; } .good { color: #1f8a3b; }
 </style></head><body>
 <h1>Add a core elsewhere</h1>
-<p>A Pi, a Mac mini or a server running vindu, on your tailnet. There, under Phone, put vindu on the tailnet and make a code; type its address and the code here.</p>
+<p>A Pi, a Mac mini or a server running vindu, on your tailnet. There, in Settings, under Phone, put vindu on the tailnet and make a code; type its address and the code here.</p>
 ${o.said ? `<p class="said ${o.done ? 'good' : 'bad'}">${esc(o.said)}</p>` : ''}
 ${o.done ? '' : `<form action="${ADD_SCHEME}add" method="get">
 <label>Its address <input name="address" value="${esc(o.address ?? '')}" placeholder="https://mini.tail1234.ts.net:7300" required autocomplete="off"></label>

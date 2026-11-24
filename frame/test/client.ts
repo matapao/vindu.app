@@ -7,9 +7,9 @@
 //   and its links bring that window forward, and open nothing else; its updates are a channel of their own at its feed
 //   (the test's: client-mac.yml, never latest-mac.yml); Quit, and nothing of it runs on.
 // - its own code, from its archive, on Electron as a test runs it (not packed: so a core of the test's own pairs at
-//   http://localhost, as the app would reach a Pi's on the tailnet, its token in a test's own store): paired, that core
-//   opens in a window of its own; a task's page there lives in the client, over the link it gives that core; another
-//   page on this computer goes to the browser, as any other site does; a link to an app goes to that core; started
+//   http://localhost, as the app would reach a Pi's on the tailnet, its token in a test's own store): paired, that core's
+//   Desktop opens in a window of its own; a task's page there lives in the client, over the link it gives that core;
+//   another page on this computer goes to the browser, as any other site does; a link to Desktop goes to that core; started
 //   again, it opens that core, not the window to add one; still no core here.
 // Chromium's own keychain is a mock one here (--use-mock-keychain): the test touches none of the person's. A Mac
 // registers an app whose program runs (Launch Services), even as Node, with the scheme it declares: what the test's
@@ -80,7 +80,7 @@ function theBundle() {
   check(verify.status === 0 && schemes.join() === 'vindu', `the bundle is signed (${by}), valid as signed, and declares the vindu scheme only`);
   // nothing of the core: no core in its resources, no VM beside it, none of desktop's pages or dependencies anywhere in it
   const desktopDeps = Object.keys((JSON.parse(fs.readFileSync(path.join(FRAME, '..', 'package.json'), 'utf8')) as { dependencies: Record<string, string> }).dependencies);
-  const ofDesktop = files(BUNDLE).map(f => path.relative(BUNDLE, f.file)).filter(f => f.endsWith('/shell.html') || desktopDeps.some(d => f.includes(`/node_modules/${d}/`)));
+  const ofDesktop = files(BUNDLE).map(f => path.relative(BUNDLE, f.file)).filter(f => f.endsWith('/static/index.html') || desktopDeps.some(d => f.includes(`/node_modules/${d}/`)));
   check(!fs.existsSync(path.join(RESOURCES, 'core')) && !fs.existsSync(path.join(BUILT, 'vbox')) && ofDesktop.length === 0,
     `nothing of the core is in it: no core in its resources (${fs.readdirSync(RESOURCES).join(', ')}), no VM beside it, none of desktop's pages or dependencies${ofDesktop.length ? ` (${ofDesktop.slice(0, 3).join(', ')})` : ''}`);
   // its archive, read by the app's own Node as the frame reads it (its package.json there): the frame as built here,
@@ -159,7 +159,7 @@ async function fromItsBundle() {
   await openUrl(app, 'vindu://desktop/hello'); await openUrl(app, 'vindu://add-core');
   await sleep(800);
   check(await windows(app) === 1 && again.url().startsWith('data:text/html') && !(await answers(PORT)),
-    'its window closed, the client stays in the menu bar; its Dock icon opens that window again, and the Dock icon again, a link to an app and vindu://add-core each bring it forward, and open nothing else');
+    'its window closed, the client stays in the menu bar; its Dock icon opens that window again, and the Dock icon again, a link to Desktop and vindu://add-core each bring it forward, and open nothing else');
   await quit(app); app = undefined;
   await until(() => { try { process.kill(pid, 0); return false; } catch { return true; } }, 'the app gone');
   check(!(await answers(PORT)) && fs.readdirSync(data).length === 0 && fs.existsSync(path.join(frameData, 'Local State')), 'Quit: the client is gone, and no core ever ran; its own files went to the test\'s folder');
@@ -167,7 +167,7 @@ async function fromItsBundle() {
 }
 
 /** Its own code, from its archive, as a test runs it: a core of the test's own elsewhere, paired, its pages living
- *  here; a link to an app; started again. */
+ *  here; a link to Desktop; started again. */
 async function fromItsArchive() {
   const otherData = tmp('frame-client-pi-'), data = tmp('frame-client-core-'), frameData = tmp('frame-client-app-'); made.push(otherData, data, frameData);
   const other = spawn(process.execPath, [TEST_CORE], { env: { ...process.env, VINDU_PORT: String(ELSEWHERE_PORT), VINDU_USER_DATA: otherData }, stdio: ['ignore', 'ignore', 'inherit'] }); spawned.add(other);
@@ -185,13 +185,11 @@ async function fromItsArchive() {
   await add.click('button');
   await until(async () => (await add.textContent('body'))?.includes('The Pi is added'), 'added');
   const pi = await until(() => app!.windows().find(w => w.url().startsWith(`http://localhost:${ELSEWHERE_PORT}/`)), 'its window');
-  await pi.waitForSelector('#grid .app[data-app="desktop"] img');
+  await pi.waitForSelector('#prompt');
   await until(async () => (await titleOf(app!, pi)).endsWith('— The Pi'), 'its name in the title');
-  check(!pi.url().includes((await ask<string>('/shell')).split('/')[3]), 'paired by the code made there, the core elsewhere opens in a window of its own, at this computer\'s own token there, its name in the title');
-  // a task's page there, in Desktop's tab: live in the client
-  await pi.click('#grid .app[data-app="desktop"]');
-  const desk = await until(() => pi.frames().find(f => f !== pi.mainFrame() && f.url().startsWith(`http://localhost:${ELSEWHERE_PORT + 1}/`)), 'Desktop there, in its tab');
-  const js = <T = unknown>(code: string) => desk.evaluate(code) as Promise<T>;
+  check(!pi.url().includes((await ask<string>('/desktop')).split('/')[3]), 'paired by the code made there, the core elsewhere\'s Desktop opens in a window of its own, at this computer\'s own token there, its name in the title');
+  // a task's page there, in its Desktop's window: live in the client
+  const js = <T = unknown>(code: string) => pi.evaluate(code) as Promise<T>;
   const click = (sel: string) => js<boolean>(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; e.click(); return true; })()`);
   await until(() => js<boolean>('!!document.getElementById("place")'), 'the window');
   await click('#place');
@@ -202,25 +200,25 @@ async function fromItsArchive() {
   await click('#page');
   const page = await until(async () => (await ask<Listed[]>(`/pages?task=${encodeURIComponent(task)}`)).find(p => p.name === 'b1' && p.live), 'the person\'s page, live', 45_000);
   const views = await app.evaluate(({ BrowserWindow }, url) => BrowserWindow.getAllWindows().find(w => w.webContents.getURL() === url)?.contentView.children.length ?? 0, pi.url());
-  check(page.live && !page.casting && views === 1, 'a task\'s page there lives in the client, over its pane in Desktop\'s tab, over the link the client gives that core: not pictured');
+  check(page.live && !page.casting && views === 1, 'a task\'s page there lives in the client, over its pane in Desktop\'s window, over the link the client gives that core: not pictured');
   // another page on this computer, which no core of a client's is: in the person's browser (here, a list the test keeps)
   await app.evaluate(({ shell }) => { const opened: string[] = []; (globalThis as { opened?: string[] }).opened = opened; shell.openExternal = async (url: string) => { opened.push(url); }; });
   await pi.evaluate(() => { window.open('http://127.0.0.1:9/elsewhere'); });
   await sleep(600);
   check((await app.evaluate(() => (globalThis as { opened?: string[] }).opened ?? [])).join() === 'http://127.0.0.1:9/elsewhere' && await windows(app) === 2,
     'another page on this computer is none of a client\'s cores\': it opens in the person\'s browser, never in a window of the app\'s');
-  // a link to an app: to that core, the one in front last
+  // a link to Desktop: to that core, the one in front last
   const link = 'vindu://desktop/hello?x=1';
   await openUrl(app, link);
-  await until(() => desk.url().endsWith(`#vindu-link=${encodeURIComponent(link)}`), 'the link, in Desktop\'s address there');
-  check(await windows(app) === 2, 'a link to an app goes to the core elsewhere in front last: that app\'s tab there, the link in its address\'s fragment, and no window more');
+  await until(() => pi.url().endsWith(`#vindu-link=${encodeURIComponent(link)}`), 'the link, in Desktop\'s address there');
+  check(await windows(app) === 2, 'a link to Desktop goes to the core elsewhere in front last: its Desktop\'s window there, the link in its address\'s fragment, and no window more');
   await quit(app); app = undefined;
   check(await answers(ELSEWHERE_PORT), 'Quit: the client goes, and the core elsewhere goes on, as a Pi\'s does');
   // started again: that core, at once
   app = await launch();
   const first = await app.firstWindow();
   await first.waitForURL(new RegExp(`^http://localhost:${ELSEWHERE_PORT}/`), { timeout: 30_000 });
-  await first.waitForSelector('#grid .app[data-app="desktop"] img', { timeout: 30_000 });
+  await first.waitForSelector('#prompt', { timeout: 30_000 });
   await until(async () => (await titleOf(app!, first)).includes('The Pi'), 'its name in the title');
   await sleep(1000);
   check(await windows(app) === 1 && !(await answers(PORT)) && fs.readdirSync(data).length === 0, 'started again, the client opens the core it has, in its window, and not the window to add one; still no core here');

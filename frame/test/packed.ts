@@ -1,6 +1,6 @@
 // The desktop app as packed (scripts/pack.mjs: out/mac-arm64/vindu.app), started from its bundle (its own program), on a
 // port and in folders of the test's own, driven by Playwright's Electron: it starts the core inside the bundle (not the
-// one built beside this folder, nor the person's), opens the grid, opens Desktop from it, and stops the core as it quits.
+// one built beside this folder, nor the person's), opens Desktop in its window, and stops the core as it quits.
 // The bundle is signed, declares the vindu scheme only, and holds all of the core, linked to nothing outside it; the VM's
 // image is not in it, so the core inside says it is missing. Updates: with its feed at a small server of the test's own,
 // which has a newer release, the app reads the feed and says the release is out, and fetches and installs nothing.
@@ -73,7 +73,7 @@ try {
     return fs.lstatSync(installed).isDirectory() && fs.readFileSync(path.join(installed, entry)).equals(fs.readFileSync(path.join(source, entry)));
   };
   check(fs.readFileSync(path.join(CORE, 'dist/src/main.js')).equals(fs.readFileSync(path.join(FRAME, '../dist/src/main.js')))
-    && fs.existsSync(path.join(CORE, 'static', 'shell.html')) && sameBuild('@matapao/celler', 'dist/index.js')
+    && fs.existsSync(path.join(CORE, 'static', 'index.html')) && sameBuild('@matapao/celler', 'dist/index.js')
     && ['dist/index.js', 'dist/server.js', 'dist/renderer/shell.js', 'dist/renderer/workspace.js'].every(entry => sameBuild('@matapao/vindu', entry))
     && [
       ['Vindu.txt', '../LICENSE'],
@@ -85,23 +85,19 @@ try {
     && outside.length === 0 && !fs.existsSync(path.join(CORE, 'out')),
     `the bundle contains the current Vindu app, UI SDK and Celler builds, with no external links${outside.length ? ` (${outside.slice(0, 3).join(', ')})` : ''}`);
 
-  // started from its bundle: the core inside it, then the grid
+  // started from its bundle: the core inside it, then Desktop
   app = await electron.launch({ executablePath: PROGRAM, env });
   const said: string[] = []; app.process().stdout?.on('data', d => said.push(String(d))); app.process().stderr?.on('data', d => said.push(String(d)));
   process.on('exit', () => { if (code) console.log(`# the app said:\n${said.join('').split('\n').filter(l => /vindu|Error|error/.test(l)).slice(-15).join('\n')}\n# its feed was asked for: ${asked.join(', ') || 'nothing'}`); });
-  const grid = await app.firstWindow();
-  await grid.waitForURL(ADDRESS, { timeout: 60_000 });
-  const shellAt = `http://localhost:${PORT}/${JSON.parse(fs.readFileSync(path.join(data, 'pages.json'), 'utf8')).shell}/`;
-  await grid.waitForSelector('#grid .app[data-app="desktop"] img');
-  check(grid.url() === shellAt && (await grid.$$eval('#grid .app span', s => s.map(x => x.textContent))).join() === 'Vindu', 'started from its bundle, the app opens the grid in its window, at the shell\'s address on the test\'s port');
+  const desk = await app.firstWindow();
+  await desk.waitForURL(ADDRESS, { timeout: 60_000 });
+  const desktopAt = `http://localhost:${PORT}/${JSON.parse(fs.readFileSync(path.join(data, 'pages.json'), 'utf8')).desktop}/`;
+  await desk.locator('#place').waitFor();
+  check(desk.url() === desktopAt && await desk.title() === 'Vindu', 'started from its bundle, the app opens Desktop in its window, at Desktop\'s address on the test\'s port, served by the core inside');
   const pid = Number(execFileSync('lsof', ['-nP', `-iTCP:${PORT}`, '-sTCP:LISTEN', '-t'], { encoding: 'utf8' }).trim().split('\n')[0]);
   const [ppid, ...command] = execFileSync('ps', ['-o', 'ppid=,command=', '-p', String(pid)], { encoding: 'utf8' }).trim().split(/\s+/);
   check(Number(ppid) === app.process().pid && command.join(' ') === `${PROGRAM} ${path.join(CORE, 'dist', 'src', 'main.js')} --no-open`,
     'the core that answers there is the one inside the bundle, started by the app on its own program (as Node)');
-  await grid.click('#grid .app[data-app="desktop"]');
-  const desk = await until(() => grid.frames().find(frame => frame !== grid.mainFrame() && frame.url().startsWith(`http://localhost:${PORT + 1}/`)), 'the workspace tab');
-  await desk.locator('#place').waitFor();
-  check(await desk.title() === 'Vindu', 'a click opens the workspace tab served by the core inside the bundle');
 
   // updates: the test's feed read, its newer release seen, and nothing fetched or installed
   await until(() => said.join('').includes(`vindu: ${newer} is out (this is ${version})`), 'the newer release, seen', 30_000);

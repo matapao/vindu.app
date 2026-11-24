@@ -1,5 +1,5 @@
-// Desktop's processors and its day's budget, through the Celler host: what it may use from the start, its usage counted,
-// and the next turn refused once it reaches the daily limit the person sets under Processors.
+// Desktop's processors and its day's budget, through the Celler host, as its Settings set them: what it may use from the
+// start, its usage counted, and the next turn refused once it reaches the daily limit the person sets.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { processors } from './consumer.js';
@@ -27,7 +27,6 @@ function pageCall(url: string, ch: string, ...args: unknown[]): Promise<unknown>
     ws.onerror = () => reject(new Error('The test page socket did not open'));
   });
 }
-const shellCall = (ch: string, ...args: unknown[]) => pageCall(app.shell.url, ch, ...args);
 const desktopCall = (ch: string, ...args: unknown[]) => pageCall(app.desktop.url, ch, ...args);
 
 function connect(task: TaskConnection): TaskConsumer {
@@ -53,11 +52,14 @@ afterAll(async () => {
 });
 
 test('Desktop has the registered processors, and connectors are chosen for each task', async () => {
-  assert.deepEqual(app.shell.apps().map(item => item.id), ['desktop']);
   assert.deepEqual(app.celler.grants('desktop'), ['claude', 'codex']);
-  await assert.rejects(shellCall('shell:grant', 'desktop', 'connector:accounts', true), /gives each task the connectors the person chooses/);
-  await assert.rejects(shellCall('shell:grant', 'desktop', 'missing', true), /No access/);
-  await assert.rejects(shellCall('shell:open', 'workshop'), /no app/);
+  const listed = await desktopCall('settings:processors') as { processors: { id: string }[]; granted: string[] };
+  assert.deepEqual([listed.processors.map(p => p.id), listed.granted], [['claude', 'codex'], ['claude', 'codex']]);
+  assert.deepEqual(await desktopCall('settings:grant', 'codex', false), ['claude']);
+  assert.deepEqual(await desktopCall('app:processors'), [{ id: 'claude', name: 'Claude Code' }]); // Desktop's picker follows
+  assert.deepEqual(await desktopCall('settings:grant', 'codex', true), ['claude', 'codex']);
+  await assert.rejects(desktopCall('settings:grant', 'connector:accounts', true), /No access/);
+  await assert.rejects(desktopCall('settings:grant', 'missing', true), /No access/);
 });
 
 test('Desktop usage is counted and the next turn is refused at the daily limit', async () => {
@@ -66,15 +68,14 @@ test('Desktop usage is counted and the next turn is refused at the daily limit',
   assert.equal(app.celler.spent('desktop').tokens, 10);
   assert.equal(app.celler.spent('desktop').cost, 0.25);
   try {
-    await shellCall('shell:budget', 'desktop', { tokens: 10 });
+    const set = await desktopCall('settings:set-budget', { tokens: 10 }) as { limits: { tokens: number }; over?: string };
+    assert.equal(set.limits.tokens, 10); assert.equal(set.over, 'Daily tokens budget reached');
     const before = specs.length;
     await assert.rejects(desktopCall('task:prompt', 'own1', 'Refused turn'), /Daily tokens budget reached/);
     assert.equal(specs.length, before);
-    const all = await shellCall('shell:budgets') as { app: string; limits: { tokens: number } }[];
-    assert.equal(all.find(row => row.app === 'desktop')?.limits.tokens, 10);
-    await assert.rejects(shellCall('shell:budget', 'missing', {}), /no app/);
+    assert.equal((await desktopCall('settings:budget') as { limits: { tokens: number } }).limits.tokens, 10);
   } finally {
-    await shellCall('shell:budget', 'desktop', {});
+    await desktopCall('settings:set-budget', {});
     await desktopCall('task:close', 'own1');
   }
 });

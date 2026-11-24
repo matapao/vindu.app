@@ -1,8 +1,8 @@
 // The core's network side, for the person's phone and their other devices: its pages on their private network over https
-// (Tailscale's address, tailnet.ts), only once they turn it on in the shell (Phone), each page at its own port there as
-// here, so each app keeps an origin of its own; the keys page never. A device is paired by a code made on this computer
-// (devices.ts) and opens the shell at an address of its own token; the shell shows each app there in a frame of its own.
-// What needs the person reaches their devices as notifications (Web Push, push.ts), from any app, with a few words: the
+// (Tailscale's address, tailnet.ts), only once they turn it on (Phone, in Desktop's Settings), each page at its own port
+// there as here, so each keeps an origin of its own; the keys page never. A device is paired by a code made on this
+// computer (devices.ts) and opens Desktop at an address of its own token.
+// What needs the person reaches their devices as notifications (Web Push, push.ts), with a few words: the
 // rest comes over the private network when they open it. Nothing here is on the internet (never Funnel).
 // Wi-Fi access uses the same pairing flow over HTTPS with a certificate the device trusts.
 import fs from 'node:fs';
@@ -20,8 +20,8 @@ import { runTailscale, serveArgs, serveOffArgs, servedPorts, tailnetOf, tailscal
 
 export type NetworkSetup = {
   userData: string;
-  /** The ports of the pages to serve on the tailnet: the shell's, Desktop's, and the doors to Vindu's pages of the tasks
-   *  open (page-doors.ts). */
+  /** The ports of the pages to serve on the tailnet: Desktop's first, then the doors to Vindu's pages of the tasks open
+   *  (page-doors.ts). */
   ports: () => number[];
   /** Tailscale's command line: where its installers put it, by default (a test's own). */
   cli?: string | null;
@@ -117,8 +117,8 @@ export function startNetwork(o: NetworkSetup) {
   const addresses = () => (o.lanAddresses ?? lanAddresses)();
   const lan = () => {
     if (!identity || !lanOn()) return [];
-    const shellPort = o.ports()[0];
-    const active = addresses().filter(address => forwards.has(`${address} ${shellPort}`));
+    const desktopPort = o.ports()[0];
+    const active = addresses().filter(address => forwards.has(`${address} ${desktopPort}`));
     if (!active.length) return [];
     const ips = active.filter(a => !a.startsWith('127.') && identity!.leaf.checkIP(a));
     return [identity.hostname, ...ips.map(hostOf)];
@@ -203,7 +203,7 @@ export function startNetwork(o: NetworkSetup) {
       await reconcile();
       const r = await serveAll(); if (!r.ok) o.log({ tailnet: 'shutdown', error: r.said });
     },
-    /** The pairing page, at the shell's port with no token: its form, and the code it sends. */
+    /** The pairing page, at Desktop's port with no token: its form, and the code it sends. */
     async pairPage(req: http.IncomingMessage, res: http.ServerResponse, rest: string, origin: string): Promise<boolean> {
       const head = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY' };
       if (rest === 'pair' && req.method === 'GET') { res.writeHead(200, { ...head, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'" }); fs.createReadStream(path.join(PAIR, 'pair.html')).pipe(res); return true; }

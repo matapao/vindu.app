@@ -6,13 +6,10 @@ import type { TaskActivity } from './desktop-task-activity.js';
 type Box = { x: number; y: number; w: number; h: number; scale?: number };
 
 export function taskPanes(host: DesktopHost, state: TaskActivity) {
-  const { desktop, appShell, send, links, userData, options: o } = host;
+  const { desktop, send, links, userData, options: o } = host;
   const { tasks, need } = state;
   const viewsOf = (id: string): Views => { const v = need(id).views; if (!v) throw new Error('this task has no terminals or pages'); return v; };
-  // where the shell shows Desktop, in a frame of a window of the desktop app's: the shell says, as the app in front changes
-  const framedIn = new Map<string, { origin: string; x: number; y: number; w: number; h: number }[]>();
   const pages = pageHost({ profile: profileDir(userData), ...(o.browserArgs ? { args: o.browserArgs } : {}), frame: links,
-    offset: window => { const f = framedIn.get(window); if (!f) return undefined; const d = f.find(x => { try { return Number(new URL(x.origin).port) === desktop.port; } catch { return false; } }); return d ? { x: d.x, y: d.y } : null; },
     onFrame: (task, name, f) => send('frame', task, name, f),
     onChange: (task, name) => { void pages.state(task, name).then(st => send('browser', task, name, pageState(task, name, st))); } });
   /** A page's bar: its address and title, whether it loads, can go back or forward, is shared, and whose it is. */
@@ -22,12 +19,6 @@ export function taskPanes(host: DesktopHost, state: TaskActivity) {
     return { ...st, shared, owner };
   };
   const pty = new Map<string, () => void>(); // task/terminal → the window's subscription
-  // the app in front in the shell's window, and where: a live pane of Desktop's in a frame there is laid where it shows
-  appShell.page.on('shell:frames', (e, list: unknown) => {
-    const w = e.sender.window; if (!w || !Array.isArray(list)) return;
-    framedIn.set(w, list.filter((x): x is { origin: string; x: number; y: number; w: number; h: number } => !!x && typeof x === 'object' && typeof (x as { origin?: unknown }).origin === 'string').slice(0, 8));
-    pages.refresh();
-  });
   // the person ends or shares a terminal or a page; where a page's native view goes (CSS pixels of the window; null: hidden)
   desktop.handle('view:end', async (e, task: string, name: string) => { if (viewsOf(task).kindOf(name) === 'terminal') requireLocalDesktop(e); const k = `${task}/${name}`; pty.get(k)?.(); pty.delete(k); await viewsOf(task).end(name); });
   desktop.handle('view:share', (e, task: string, name: string, on: boolean) => { if (viewsOf(task).kindOf(name) === 'terminal') requireLocalDesktop(e); return viewsOf(task).share(name, on); });

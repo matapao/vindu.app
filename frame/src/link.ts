@@ -3,7 +3,7 @@
 // protocol, as it drives a page in its own hidden Chromium. For the core the app starts, the link is a socket only this
 // user can open (a Unix socket in a folder of its own, or a named pipe on Windows), and it takes one connection, the one
 // that first sends the token the core was given. For a core elsewhere the person paired this app with (cores.ts), the app
-// opens the link itself, a socket to that core's shell at this computer's token there, and opens it again after a drop.
+// opens the link itself, a socket to that core's Desktop at this computer's token there, and opens it again after a drop.
 // Over either, one JSON message at a time, each way: the core asks ({ id, m, … }) and is answered ({ id, result } or
 // { id, error }); the app tells it the windows it has, each by its key ({ ev: 'windows' }), and what each page's DevTools
 // protocol says ({ ev: 'cdp' }). Each core has its own pages here; one that goes takes its pages with it.

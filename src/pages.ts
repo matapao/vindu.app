@@ -42,10 +42,6 @@ export type PageHostOptions = {
   onFrame: (task: string, name: string, f: Frame) => void;
   /** A page moved, loaded or changed its title. */
   onChange: (task: string, name: string) => void;
-  /** Where Desktop's page is in a window of the desktop app's, when the shell shows it in a frame of that window: its
-   *  place there (a pane's place is in Desktop's page), null when the shell shows its own pages in front, or nothing for
-   *  a window Desktop has to itself. */
-  offset?: (window: string) => { x: number; y: number } | null | undefined;
 };
 
 const session = (s: CDPSession): Cdp => ({ send: (m, params) => s.send(m as never, params as never), on: (ev, fn) => { s.on(ev as never, fn as never); return () => { s.off(ev as never, fn as never); }; } });
@@ -91,12 +87,11 @@ export function pageHost(o: PageHostOptions) {
    *  pictured once as it is. */
   const apply = async (task: string, name: string) => {
     const p = open.get(key(task, name)); if (!p) return;
-    const off = p.window && o.offset ? o.offset(p.window) : undefined; // Desktop in a frame of the shell's window: its place there; null, behind the shell's own pages
-    const on = task === front && !!p.box && off !== null, own = p.made.own;
+    const on = task === front && !!p.box, own = p.made.own;
     if (p.made.native) {
       const here = on && p.window && (p.made.shows?.(p.window) ?? o.frame?.has(p.window)) ? p.window : undefined; // live in its own app's window; pictured anywhere else
       p.live = !!here;
-      p.made.native(here ?? null, here ? (off ? { ...p.at!, x: p.at!.x + off.x, y: p.at!.y + off.y } : p.at!) : undefined);
+      p.made.native(here ?? null, here ? p.at! : undefined);
       if (here) {
         if (p.casting) { p.casting = false; clearTimeout(p.still); await own.send('Page.stopScreencast').catch(() => undefined); await own.send('Emulation.clearDeviceMetricsOverride').catch(() => undefined); }
         return;
@@ -141,8 +136,6 @@ export function pageHost(o: PageHostOptions) {
       await p.made.close().catch(() => undefined);
     },
     /** A task that closed: its own pages and their context go with it. */
-    /** Every page laid again where it is: the shell moved Desktop in its window, or put its own pages in front. */
-    refresh() { for (const k of open.keys()) { const [task, ...rest] = k.split('/'); void apply(task, rest.join('/')); } },
     async closeTask(task: string) {
       for (const k of [...open.keys()]) if (k.startsWith(`${task}/`)) await this.close(task, k.slice(task.length + 1));
       const c = models.get(task); models.delete(task); await c?.then(x => x.close()).catch(() => undefined);

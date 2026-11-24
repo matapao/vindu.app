@@ -1,4 +1,4 @@
-// A page's server: one page of the app (the shell's grid, Desktop, the connector keys), served on this computer only, on an
+// A page's server: one page of the app (Desktop, the connector keys), served on this computer only, on an
 // origin of its own (a port of its own), with a token in every address. It serves the page and its files, and carries
 // the page's calls and the app's events both ways over one WebSocket, in order, as Electron's IPC did. A request has to
 // name the token and come to this computer by its own name (localhost or 127.0.0.1, so no other name that resolves here
@@ -6,7 +6,7 @@
 // address. Nothing else is served: no listing, only the files named, and a page's web app manifest and icon when the
 // person can install it as an app of its own. Once the person serves the core on their private network (network.ts), a
 // page is reached by that https name too, at the same port, and there only at a paired device's token, never its own, so a
-// device removed opens nothing; and a page that is an app on the grid may be framed by the shell's page, and by no other.
+// device removed opens nothing. No page frames another of the app's.
 // So it is on their own Wi-Fi, once the person says so: by this computer's names there, over HTTPS, as the core's
 // forwarder brings those requests here (network.ts), at a paired device's token alone too.
 import crypto from 'node:crypto';
@@ -56,11 +56,9 @@ export type PageServerOptions = {
   lan?: () => string[];
   /** Other tokens it opens for: a paired device's, as its id. */
   devices?: (token: string) => string | undefined;
-  /** The pages that may frame it (the shell's): none, by default. */
-  frameAncestors?: () => string[];
   /** A desktop app's link from a paired device (the person's other computer), at its token's frame socket. */
   links?: (device: string, ch: { send(message: string): void; onMessage(f: (message: string) => void): void; onClose(f: () => void): void }) => void;
-  /** What it serves with no token (the shell's pairing page); origin: the page's own, as the request reached it. */
+  /** What it serves with no token (Desktop's pairing page); origin: the page's own, as the request reached it. */
   open?: (req: http.IncomingMessage, res: http.ServerResponse, rest: string, origin: string) => boolean | Promise<boolean>;
   /** Its own addresses under the token (an upload, a download): true when it answered. */
   routes?: (req: http.IncomingMessage, res: http.ServerResponse, rest: string) => boolean | Promise<boolean>;
@@ -138,16 +136,15 @@ export async function startPageServer(o: PageServerOptions): Promise<PageServer>
   const local = (host: string) => host.startsWith('localhost:') || host.startsWith('127.0.0.1:');
   /** Both remote transports use HTTPS; the loopback listener is HTTP. */
   const tls = (host: string) => names().some(n => host === `${n}:${port}`);
-  const framers = () => o.frameAncestors?.() ?? [];
   const csp = () => `${typeof o.csp === 'function' ? o.csp() : o.csp}`
     .replace(/connect-src [^;]*/, m => `${m.replace(/'none'/, '').trim()} ws://localhost:${port} ws://127.0.0.1:${port}${names().map(n => ` wss://${n}:${port}`).join('')}`)
-    + `; frame-ancestors ${framers().length ? framers().join(' ') : "'none'"}`;
+    + "; frame-ancestors 'none'";
   const base = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' };
   const secure = { ...base, 'X-Frame-Options': 'DENY' }; // no page frames these
   const serve = (res: http.ServerResponse, file: string, page = false) => {
     fs.stat(file, (err, st) => {
       if (err || !st.isFile()) { res.writeHead(404, secure).end(); return; }
-      res.writeHead(200, { ...(page && framers().length ? base : secure), 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', ...(page ? { 'Content-Security-Policy': csp() } : {}) });
+      res.writeHead(200, { ...secure, 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', ...(page ? { 'Content-Security-Policy': csp() } : {}) });
       fs.createReadStream(file).pipe(res);
     });
   };

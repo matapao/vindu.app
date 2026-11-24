@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "license": "MIT",
   "private": true,
-  "description": "vindu's desktop app: the shell's window on a computer, around the same pages a browser shows. It starts this computer's vindu, or opens one elsewhere.",
+  "description": "vindu's desktop app: Desktop's window on a computer, the same page a browser shows. It starts this computer's vindu, or opens one elsewhere.",
   "type": "module",
   "main": "dist/src/main.js",
   "scripts": {

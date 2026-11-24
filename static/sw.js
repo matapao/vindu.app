@@ -1,12 +1,12 @@
-// The shell's service worker, on a paired device: the shell's own files kept for when the network is slow or gone, and
-// the core's notifications shown; a tap brings the shell forward, or opens it.
-const KEEP = ['./', 'shell-page.bundle.js', 'app-icon', 'manifest.webmanifest'];
-const CACHE = 'vindu-shell';
+// Desktop's service worker, on a paired device: Desktop's own files kept for when the network is slow or gone, and the
+// core's notifications shown; a tap brings Desktop forward, or opens it.
+const KEEP = ['./', 'renderer.bundle.js', 'renderer.bundle.css', 'app-icon', 'manifest.webmanifest'];
+const CACHE = 'vindu-desktop';
 const kept = () => KEEP.map(f => new URL(f, self.registration.scope).href);
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(KEEP)).catch(() => undefined)); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET' || !kept().includes(e.request.url)) return; // the apps' pages, and everything live, as they are
+  if (e.request.method !== 'GET' || !kept().includes(e.request.url)) return; // the tasks' pages, and everything live, as they are
   e.respondWith(fetch(e.request).then(r => { if (r.ok) { const copy = r.clone(); void caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; }).catch(() => caches.match(e.request, { cacheName: CACHE })));
 });
 self.addEventListener('push', e => {

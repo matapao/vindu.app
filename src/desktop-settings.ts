@@ -26,7 +26,7 @@ export type AppOptions = {
   connect?: TaskSetup['connect'];
   userData?: string;                                           // settings and tasks: the system's place for the app's data, by default
   home?: string;                                               // the person's home, for ~ in paths
-  port?: number;                                               // the shell's port (7300); Desktop's is the next one, the keys page's the one after
+  port?: number;                                               // Desktop's port (7300); the keys page's is the next one
   browserArgs?: string[];                                      // what the pages' Chromium starts with besides its own (a test's host rules)
   secrets?: Secrets;                                           // where connector keys are kept: the system's own store, by default (a test's own)
   frame?: FrameLink;                                           // the desktop app's link, when it started this core: browser views' pages live there, over their panes
@@ -39,5 +39,5 @@ export type AppOptions = {
 };
 /** Where Desktop's pages are, and their scripts once built. */
 export const STATIC = path.join(import.meta.dirname, '..', '..', 'static'), BUILT = import.meta.dirname;
-/** Desktop's icon: on the shell's grid, on its tab, and on its window when the person installs it as a web app. */
+/** Desktop's icon: on its tab, and on its window when the person installs it as a web app. */
 export const ICON = path.join(STATIC, 'icons', 'desktop.svg');

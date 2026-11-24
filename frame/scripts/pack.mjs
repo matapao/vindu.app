@@ -21,14 +21,14 @@ if (!dir && system === 'mac') {
   macIdentity = /([A-F0-9]{40}) "Developer ID Application: /.exec(identities)?.[1];
   if (!macIdentity) throw new Error('A macOS release requires a Developer ID Application signing identity.');
 }
-if (!client) for (const f of ['dist/src/main.js', 'dist/src/renderer.bundle.js', 'dist/src/shell-page.bundle.js', 'dist/src/phone.bundle.js', 'dist/src/keys.bundle.js', 'node_modules/@matapao/celler/dist/index.js', 'node_modules/@matapao/vindu/dist/index.js', 'node_modules/@matapao/vindu/dist/server.js'])
+if (!client) for (const f of ['dist/src/main.js', 'dist/src/renderer.bundle.js', 'dist/src/phone.bundle.js', 'dist/src/keys.bundle.js', 'node_modules/@matapao/celler/dist/index.js', 'node_modules/@matapao/vindu/dist/index.js', 'node_modules/@matapao/vindu/dist/server.js'])
   if (!fs.existsSync(path.join(APP, f))) throw new Error(`${path.join(APP, f)} is missing. Run the app's bootstrap command to build its linked dependencies and app.`);
 if (!fs.existsSync(path.join(FRAME, 'dist', 'src', 'main.js'))) throw new Error('the frame is not built: pnpm build here first');
 fs.rmSync(stage, { recursive: true, force: true }); fs.mkdirSync(stage, { recursive: true });
 
 if (!client) stageCore(stage, APP, { os, cpu, libc });
 
-// its icon, the shell's own (static/icons/vindu.svg), as scripts/icons.mjs draws it for a Mac: its square on 824 of
+// its icon, vindu's own (static/icons/vindu.svg), as scripts/icons.mjs draws it for a Mac: its square on 824 of
 // 1024 pixels
 const resources = path.join(stage, 'build'); fs.mkdirSync(resources); fs.copyFileSync(path.join(APP, 'static', 'icons', 'vindu-mac-1024.png'), path.join(resources, 'icon.png'));
 
@@ -54,7 +54,7 @@ const config = {
   protocols: [{ name: 'vindu', schemes: ['vindu'] }],
   mac: { category: 'public.app-category.productivity', type: 'distribution', identity: macIdentity, notarize: !dir },
   nsis: { oneClick: true, perMachine: false, include: path.join(FRAME, 'scripts', 'windows-links.nsh') }, // its scheme, which electron-builder registers on a Mac and Linux only
-  linux: { category: 'Utility', maintainer: 'vindu', synopsis: 'The shell\'s frame on a computer', syncDesktopName: true },
+  linux: { category: 'Utility', maintainer: 'vindu', synopsis: 'Vindu\'s desktop app', syncDesktopName: true },
   publish: feed ? [{ provider: 'generic', url: feed, ...(client ? { channel: 'client' } : {}) }] : null,
 };
 const targets = {

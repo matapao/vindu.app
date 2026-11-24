@@ -9,7 +9,7 @@ import { arrange, stateOf, notifies, type Activity, type ActState } from './acti
 export type TaskActivity = ReturnType<typeof taskActivity>;
 
 export function taskActivity(host: DesktopHost) {
-  const { userData, send, desktop, appShell, network, tilde } = host;
+  const { userData, send, desktop, network, tilde } = host;
   const tasks = new Map<string, OpenTask>();
   let closing = false;
   const routers = new Map<string, TaskRouter>(); // each task's way in, from the moment its window exists
@@ -29,7 +29,6 @@ export function taskActivity(host: DesktopHost) {
     const id = `n${++noticed}`;
     notices.set(id, () => { send('front', task); then?.(); });
     send('notice', { id, task, title, body });
-    if (!desktop.clients()) appShell.page.send('shell:notice', { app: APP.id, name: APP.name, title, body }); // no page of Desktop's open: the shell's says it
     if (!onScreen()) void network?.notify({ title, body, tag: `desktop:${task}` }); // and on the person's devices, when they are away from this one
   };
   const looking = (task: string) => task === front && onScreen();

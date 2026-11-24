@@ -6,7 +6,7 @@
 // { id, error }); the app tells the windows it has, each by its key ({ ev: 'windows' }), and what each page's DevTools
 // protocol says ({ ev: 'cdp' }).
 // A desktop app on another computer of the person's, paired with this core (a core elsewhere: a Pi, a Mac mini), gives its
-// link the same way, over its own socket to the core's shell (web.ts, at its device's token): the same messages, one a
+// link the same way, over its own socket to Desktop's page server (web.ts, at its device's token): the same messages, one a
 // frame. The core has every link it was given (frameLinks): a page is opened in the app the person used last, and shows
 // live only in that app's windows; elsewhere it is pictured, as in a browser.
 import net from 'node:net';

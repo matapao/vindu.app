@@ -1,6 +1,5 @@
 // Live browser panes in the desktop app: a task's browser views' pages live in the app, each a page of its own laid over
-// its pane in Desktop's tab of the shell's window (where the shell says Desktop's frame is), and the core drives each
-// over the DevTools protocol, as it drives a page in its own
+// its pane in Desktop's window, and the core drives each over the DevTools protocol, as it drives a page in its own
 // hidden Chromium (where a browser's tab shows pictures of it, as Desktop's browser test checks). The person's page and
 // the model's, each in a session of its own. With a core of the test's own (core.ts): its harness calls no model, and its
 // tasks run on this computer; and a site of the test's own, on this computer. Synthetic data only. Its windows show on the
@@ -70,29 +69,23 @@ try {
   const said: string[] = []; // what the app and its core printed, for a failure to show
   app.process().stdout?.on('data', d => said.push(String(d))); app.process().stderr?.on('data', d => said.push(String(d)));
   process.on('exit', () => { if (process.exitCode || code) console.log(`# the app said, at the end:\n${said.join('').split('\n').filter(l => /vindu/.test(l)).slice(-15).join('\n')}`); });
-  const grid = await app.firstWindow();
-  await grid.waitForURL(ADDRESS, { timeout: 60_000 });
+  const desk = await app.firstWindow(); // Desktop, the app's window
+  await desk.waitForURL(ADDRESS, { timeout: 60_000 });
   const inspect = await until(() => { try { return (JSON.parse(fs.readFileSync(path.join(data, 'test-core.json'), 'utf8')) as { inspect: string }).inspect; } catch { return undefined; } }, 'the test core');
   const ask = async <T>(p: string) => (await (await fetch(`${inspect}${p}`)).json()) as T;
-  await grid.waitForSelector('#grid .app[data-app="desktop"] img');
-  await grid.click('#grid .app[data-app="desktop"]'); // its tab, in the shell's window
-  const desk = await until(() => grid.frames().find(f => f !== grid.mainFrame() && ADDRESS.test(f.url()) && Number(ADDRESS.exec(f.url())![1]) === PORT + 1), 'Desktop, in its tab');
+  await desk.waitForSelector('#prompt', { timeout: 30_000 });
   const js = <T = unknown>(code: string) => desk.evaluate(code) as Promise<T>;
   const click = (sel: string) => js<boolean>(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; e.click(); return true; })()`);
   const pane = (v: string) => `.task:not([hidden]) .vindu-pane[data-view="${v}"]`;
-  /** A pane's place in the shell's window: in Desktop's page, where its frame is in the window. */
-  const slot = async (v: string) => {
-    const r = await js<Rect>(`(() => { const r = document.querySelector('${pane(v)} .vindu-slot').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()`);
-    const f = await grid.evaluate(() => { const b = document.getElementById('frames')!.getBoundingClientRect(); return { x: b.left, y: b.top }; });
-    return { x: r.x + f.x, y: r.y + f.y, w: r.w, h: r.h };
-  };
+  /** A pane's place in Desktop's window: its page is the window's own. */
+  const slot = (v: string) => js<Rect>(`(() => { const r = document.querySelector('${pane(v)} .vindu-slot').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()`);
   /** The pages laid over Desktop's window in the app: each one's place there and its address, as the app has them. */
   const views = () => app!.evaluate(({ BrowserWindow }, port) => {
     const w = BrowserWindow.getAllWindows().find(x => { try { return new URL(x.webContents.getURL()).port === String(port); } catch { return false; } });
     return (w?.contentView.children ?? []).map(v => ({ bounds: v.getBounds(), url: (v as unknown as { webContents?: { getURL(): string } }).webContents?.getURL() ?? '' }));
   }, PORT);
   const near = (b: { x: number; y: number; width: number; height: number }, r: Rect) => Math.abs(b.x - r.x) <= 1 && Math.abs(b.y - r.y) <= 1 && Math.abs(b.width - r.w) <= 1 && Math.abs(b.height - r.h) <= 1;
-  check(Number(ADDRESS.exec(desk.url())![1]) === PORT + 1, 'the app starts the core, and Desktop opens in a tab of the shell\'s window from the grid');
+  check(Number(ADDRESS.exec(desk.url())![1]) === PORT, 'the app starts the core, and Desktop opens in its window');
 
   // a task, in a folder of the test's
   await until(() => js<boolean>('!!document.getElementById("place")'), 'the window');
@@ -112,7 +105,7 @@ try {
   });
   const first = await until(async () => { const v = await views(); return v.length === 1 ? v : undefined; }, 'its page in Desktop\'s window');
   const s1 = await slot('b1');
-  check(near(first[0].bounds, s1) && !(await pageOf('b1'))!.casting, `the person's page is a page of its own in the shell's window, laid over its pane in Desktop's tab (${Math.round(s1.w)} × ${Math.round(s1.h)}), not pictured`);
+  check(near(first[0].bounds, s1) && !(await pageOf('b1'))!.casting, `the person's page is a page of its own in the app, laid over its pane in Desktop's window (${Math.round(s1.w)} × ${Math.round(s1.h)}), not pictured`);
   await js(`(() => { const f = document.querySelector('${pane('b1')} form.vindu-viewbar'); f.querySelector('input.vindu-address').value = '${base.replace('http://', '')}'; f.requestSubmit(); })()`);
   await until(async () => (await pageOf('b1'))?.url === base, 'the address the person typed');
   await until(async () => (await views())[0]?.url === base, 'the live page, there');
@@ -139,7 +132,7 @@ try {
   const own = await call('show_view', { name: 'ledger', title: 'Ledger', browser: { url: base } });
   check(own.owner === 'model' && own.snapshot?.title === 'Ledger (synthetic)', 'the model opens a page of its own with show_view');
   await until(async () => (await pageOf('ledger'))?.live, 'the model\'s page, live in its pane');
-  const both = await until(async () => { const v = await views(); return v.length === 2 && v.every(x => x.url === base) ? v : undefined; }, 'two pages in the shell\'s window');
+  const both = await until(async () => { const v = await views(); return v.length === 2 && v.every(x => x.url === base) ? v : undefined; }, 'two pages in Desktop\'s window');
   const fits = async () => { const v = await views(), r1 = await slot('b1'), r2 = await slot('ledger'); return v.length === 2 && v.some(x => near(x.bounds, r1)) && v.some(x => near(x.bounds, r2)); };
   await until(fits, 'each over its pane', 5000);
   check(both.length === 2, 'the model\'s page is a live page too, and each is laid over its own pane as the layout changes');
@@ -148,13 +141,13 @@ try {
   check(cookies.person.includes('person-synthetic') && cookies.model === '', 'the model\'s page carries none of the person\'s sign-ins: a session of its own');
 
   await call('show_view', { name: 'summary', title: 'Summary', panels: [{ id: 'report', card: 'page', html: '<!doctype html><p>Reviewed task output</p>' }] });
-  const report = await until(() => grid.frames().find(f => /^http:\/\/[0-9a-f]{32}\.localhost:/.test(f.url())), 'the task output inside Electron');
+  const report = await until(() => desk.frames().find(f => /^http:\/\/[0-9a-f]{32}\.localhost:/.test(f.url())), 'the task output inside Electron');
   await report.getByText('Reviewed task output', { exact: true }).waitFor();
   check(true, 'task HTML renders in its own origin inside the desktop');
 
   const filled = await ask<{ started?: boolean; failed?: string[] }>('/provider-pane?task=' + encodeURIComponent(task));
   check(filled.started && !filled.failed?.length, `the task reads its selected connector through Celler (${JSON.stringify(filled)})`);
-  const invoice = await until(() => grid.frames().find(f => f.parentFrame() === desk && /^http:\/\/app-[a-f0-9]{32}\.localhost:/.test(f.url())), 'the provider iframe inside the task');
+  const invoice = await until(() => desk.frames().find(f => f.parentFrame() === desk.mainFrame() && /^http:\/\/app-[a-f0-9]{32}\.localhost:/.test(f.url())), 'the provider iframe inside the task');
   await invoice.getByText(receipt, { exact: true }).waitFor();
   check(true, 'the provider resource renders its live tool result inside the Electron task');
 

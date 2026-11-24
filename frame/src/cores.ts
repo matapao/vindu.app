@@ -1,5 +1,5 @@
 // The cores elsewhere the person added to this app (a Pi, a Mac mini, a server): each by its address on their tailnet and
-// the token it gave this computer when they paired, by a code made under Phone there (vindu's src/network.ts), kept in the
+// the token it gave this computer when they paired, by a code made under Phone in Settings there (src/network.ts), kept in the
 // system's keychain (Electron's safeStorage), never in the clear. A core elsewhere is reached at its https address only.
 // This computer's own core is not here: the app starts it, or finds it running.
 import { randomBytes } from 'node:crypto';
@@ -44,8 +44,8 @@ export function coresElsewhere(file: string) {
       write([...read().filter(x => x.address !== u.origin), c]); // pairing again replaces what was kept for that core
       return { id: c.id, name: c.name, address: c.address };
     },
-    /** The core's shell, at this computer's token there. */
-    shell: (id: string) => { const c = find(id); return `${c.address}/${keep.take(c.token)}/`; },
+    /** The core's Desktop, at this computer's token there. */
+    desktop: (id: string) => { const c = find(id); return `${c.address}/${keep.take(c.token)}/`; },
     /** Its link's address, for its browser views' pages to live here (link.ts). */
     linkAt: (id: string) => { const c = find(id); return `${c.address.replace(/^http/, 'ws')}/${keep.take(c.token)}/frame`; },
     remove: (id: string) => { write(read().filter(x => x.id !== id)); },

@@ -1,4 +1,4 @@
-// vindu names no app it may hold, and none of the projects it came from: it holds any app the same way. This fails on any
+// vindu names no other app, and none of the projects it came from: it is its own app. This fails on any
 // file that does. The names are those, past and present; a new one joins the list.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';

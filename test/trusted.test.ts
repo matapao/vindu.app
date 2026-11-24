@@ -1,4 +1,4 @@
-// The trusted core: the modules that hold the person's tokens and keys, serve the pages and the shell, and pair the
+// The trusted core: the modules that hold the person's tokens and keys, serve the pages, and pair the
 // person's devices. They take only Node's own modules and each other, nothing from a package, so what has to be trusted
 // is what is here to read, and they stay small enough to read. The app wires in Celler for execution and Vindu for views.
 // These modules do not import either library.
@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const TRUSTED = ['web', 'socket-messages', 'page-credentials', 'request-target', 'lan-tls', 'page-doors', 'remote', 'phone-transfer', 'shell', 'devices', 'push', 'tailnet', 'network', 'service', 'secrets', 'keyrefs', 'frame-link'];
+const TRUSTED = ['web', 'socket-messages', 'page-credentials', 'request-target', 'lan-tls', 'page-doors', 'remote', 'phone-transfer', 'devices', 'push', 'tailnet', 'network', 'service', 'secrets', 'keyrefs', 'frame-link'];
 const LINES = 2000; // the whole of it: past this, something in it belongs outside it
 const BUILT = path.join(import.meta.dirname, '..', 'src'), SOURCE = path.join(import.meta.dirname, '..', '..', 'src');
 

@@ -3,6 +3,7 @@ import { createTaskOptions } from './renderer/task-options.js';
 import { createTaskTurns } from './renderer/task-turns.js';
 import { bindContextChips } from './renderer/context-chips.js';
 import { bindTaskToolbar } from './renderer/task-toolbar.js';
+import { bindSettings } from './renderer/settings-view.js';
 import {
   createActivityCard,
   refreshActivityCard,
@@ -188,6 +189,7 @@ function leave() {
 
 // ---- the thread's bar: terminals and pages, the view (static or dynamic, kept as a template), a new task from it, export
 
+bindSettings();
 const { drawMode, refreshMode, templates, drawCaptures } = bindTaskToolbar({
   getTask: () => activeTask,
   command: (command) => visibleTask?.views?.shell.command(command),

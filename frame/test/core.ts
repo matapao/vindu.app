@@ -37,8 +37,8 @@ const inspect = http.createServer((q, r) => {
   const u = new URL(q.url ?? '/', 'http://x'), task = u.searchParams.get('task') ?? '';
   void (async () => {
     if (u.pathname === '/tasks') answer(r, [...a.tasks.keys()]);
-    else if (u.pathname === '/code') answer(r, a.pairingCode()); // a code to pair with, as the shell's Phone makes one: for the app on "another computer"
-    else if (u.pathname === '/shell') answer(r, a.url);
+    else if (u.pathname === '/code') answer(r, a.pairingCode()); // a code to pair with, as Phone in Settings makes one: for the app on "another computer"
+    else if (u.pathname === '/desktop') answer(r, a.url);
     else if (u.pathname === '/pages') answer(r, a.pages(task));
     else if (u.pathname === '/ui') answer(r, a.tasks.has(task) ? endpoints.get(task) : null);
     else if (u.pathname === '/layout') answer(r, a.tasks.get(task)?.ui.layoutMcpServer);

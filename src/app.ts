@@ -18,7 +18,7 @@ const slug = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^\w]+/g,
 
 export async function startApp(o: AppOptions = {}) {
   const host = await openDesktopHost(o);
-  const { userData, home, send, tasksFolder, tilde, desktop, granted, celler, network, doors, appShell } = host;
+  const { userData, home, send, tasksFolder, tilde, desktop, granted, celler, network, doors } = host;
   const { availableConnectors, keyOf, connectorsDir, openKeys, keysFile } = host.connectors;
   const { files, attach } = host.attachments;
   const state = taskActivity(host);
@@ -79,7 +79,7 @@ export async function startApp(o: AppOptions = {}) {
     try { return await start(opening, cwd, { template, id: String(q.id) }); }
     catch (e) { if (made) try { fs.rmdirSync(cwd); } catch { /* not empty: left as it is */ } throw e; }
   });
-  desktop.handle('app:processors', () => granted()); // the harnesses this app may use, as the shell's Processors give them
+  desktop.handle('app:processors', () => granted()); // the harnesses Desktop may use, as Processors in Settings give them
   desktop.handle('settings:inference', () => []);
   desktop.handle('settings:folder', () => ({ root: tilde(tasksFolder()) })); // where a task gets a folder of its own when the person picks none
   desktop.handle('pick:folder', async ({ sender }) => {
@@ -146,15 +146,15 @@ export async function startApp(o: AppOptions = {}) {
     await pages.stop();
     await host.close();
   };
-  /** The shell's address, for the person; for a test: Desktop's page and the shell, the tasks, where each page's pane is and whether it is pictured, and Celler. */
+  /** Desktop's address, for the person; for a test: Desktop's page, the tasks, where each page's pane is and whether it is pictured, and Celler. */
   return {
-    url: appShell.url, desktop, shell: appShell, send, tasks, close, togglePhone, phone: media.phone,
+    url: desktop.url, desktop, send, tasks, close, togglePhone, phone: media.phone,
     templatesDir, connectorsDir, openKeys, keysFile, notify, notices: () => notices.size, captures: media.list,
     activity: state.list, front: () => state.front, act: (id: string) => acts.get(id),
     pages: (task: string) => pages.pages(task), pageEval: (task: string, name: string, js: string) => pages.evaluate(task, name, js),
 
     celler,
-    /** The network side: a code to pair with, as the shell's Phone makes one (a test's other computer). */
+    /** The network side: a code to pair with, as Phone in Settings makes one (a test's other computer). */
     pairingCode: () => network!.devices.newCode().code,
   };
 }

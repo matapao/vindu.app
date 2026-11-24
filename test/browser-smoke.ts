@@ -1,5 +1,5 @@
-// The app itself, in a browser: the shell's page with its grid and Processors, Desktop opened from it in a tab of its own, a
-// task with the test's own harness there, and a terminal and browser pages as views, as the person uses them and as the
+// The app itself, in a browser: Desktop, at the address the app gives, with Processors in its Settings, a task with the
+// test's own harness there, and a terminal and browser pages as views, as the person uses them and as the
 // model gets them, through the UI server. What the harness asks is answered in the task's thread, in Activity. The test
 // opens the app's pages in a Chromium of its own (Playwright's), as the person's browser would. Not part of npm test,
 // since it needs Playwright's Chromium (its headless shell, and Chromium in full for installing pages as web apps):
@@ -47,11 +47,9 @@ await (async () => {
   const exportTo = path.join(tmp('export-'), 'task.zip');
   const a = await startApp({ userData, port: 17300, browserArgs: HOSTS, secrets: memory(), pickFolder: async () => work, pickSave: async () => exportTo, processors, connect: connectConsumer });
   const browser = await chromium.launch({ headless: true }), context = await browser.newContext({ viewport: { width: 1440, height: 856 } });
-  const shellPage = await context.newPage(); await shellPage.goto(a.url);
   const errors: string[] = [];
   const watch = (p: Page) => { p.on('console', m => { if (m.type() === 'error') errors.push(`${new URL(p.url()).port}: ${m.text()}`); }); p.on('pageerror', e => errors.push(`${new URL(p.url()).port}: ${e.message}`)); };
-  watch(shellPage);
-  let page = shellPage; // Desktop's tab, once the shell opens it
+  const page = await context.newPage(); watch(page); await page.goto(a.url); // Desktop, at the address the app gives the person
   const js = <T = unknown>(code: string) => page.evaluate(code) as Promise<T>;
   const rect = (sel: string) => js<{ x: number; y: number; w: number; h: number } | null>(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return null; const r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; })()`);
   const click = (sel: string) => js<boolean>(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; e.click(); return true; })()`);
@@ -66,40 +64,33 @@ await (async () => {
   const shot = async (name: string) => { if (process.env.SMOKE_SHOT) await page.screenshot({ path: process.env.SMOKE_SHOT.replace(/\.png$/, `-${name}.png`) }); };
   let task = '';
   try {
-    // the shell: its grid, with Desktop on it; a click on Desktop's tile opens it in a tab of its own
-    const sh = <T = unknown>(code: string) => shellPage.evaluate(code) as Promise<T>;
-    const tile = (id: string) => `#grid .app[data-app="${id}"]`, codex = `#grants tr[data-app="desktop"] input[data-processor="codex"]`;
+    // Desktop is what the person opens: its own page, only with its token
+    const codex = '#setup-harnesses input[data-processor="codex"]';
     const harnesses = () => js<string>(`[...document.getElementById('harness').options].map(o => o.value).join()`);
-    await until(() => sh<boolean>(`[...document.querySelectorAll('#grid .app img')].length === 1 && [...document.querySelectorAll('#grid .app img')].every(i => i.complete && i.naturalWidth > 0)`), 'the shell\'s grid');
-    check(await sh<string>(`[...document.querySelectorAll('#grid .app span')].map(s => s.textContent).join()`) === 'Vindu', 'the shell opens on its grid: Desktop, with its icon and name');
-    check(await sh<boolean>(`typeof window.desktop === 'undefined'`) && await fetch(a.url.replace(/\/[\w-]+\/$/, '/not-the-token/')).then(r => r.status) === 404, 'the shell\'s page is its own, only with its token');
-    [page] = await Promise.all([context.waitForEvent('page'), shellPage.click(tile('desktop'))]);
-    watch(page);
-    await page.waitForURL(a.desktop.url, { timeout: 20_000 });
-    check(new URL(page.url()).origin !== new URL(a.url).origin && await js<boolean>(`typeof window.shell === 'undefined' && typeof window.desktop.create === 'function'`),
-      'a click on its tile opens Desktop in a tab of its own, on an origin of its own: its page reaches only Desktop');
-    const pagesBefore = context.pages().length; await shellPage.click(tile('desktop')); await sleep(300);
-    check(context.pages().length === pagesBefore, 'clicked again: the same tab, not another');
-    // Processors: the harnesses each app may use; Desktop's picker follows, and the app is refused one it may not use
-    await shellPage.click('#procs');
-    await until(() => sh<boolean>(`!!document.querySelector('${codex}')`), 'the shell\'s Processors');
-    const picker = shellPage.locator('#grants tr[data-app="desktop"] input[data-processor]');
-    check((await shellPage.locator('#list .proc b').allTextContents()).join(',') === 'Claude Code,Codex'
+    await until(() => js<boolean>('!!document.getElementById("prompt")'), 'Desktop');
+    check(a.url === a.desktop.url && await js<boolean>(`typeof window.desktop.create === 'function'`) && await fetch(a.url.replace(/\/[\w-]+\/$/, '/not-the-token/')).then(r => r.status) === 404,
+      'the app\'s address is Desktop\'s own page, only with its token');
+    // Processors, in Desktop's Settings: the harnesses Vindu may use; its picker follows, and a task is refused one it may not use
+    await page.click('#setup-open');
+    await until(() => js<boolean>(`!!document.querySelector('${codex}')`), 'Processors in Settings');
+    const picker = page.locator('#setup-harnesses input[data-processor]');
+    check((await page.locator('#setup-harnesses label span').allTextContents()).join(',') === 'Claude Code,Codex'
       && await picker.count() === 2 && await picker.evaluateAll(inputs => inputs.every(input => (input as HTMLInputElement).checked)),
-      'the registered processors are selected for Desktop');
-    await shellPage.click(codex);
+      'the registered processors are selected for Vindu, in Settings');
+    await page.click(codex);
     await until(async () => await harnesses() === 'claude', 'Codex gone from Desktop\'s picker');
     const unpicked = await js<string>(`desktop.create({ id: 'no-pick', harness: 'claude', folder: ${JSON.stringify(work)} }).then(() => 'started', e => String(e.message))`);
     check(/Choose the working folder/.test(unpicked) && !a.tasks.size, 'a task can use only a folder chosen in its window');
     const refused = await js<string>(`desktop.create({ id: 'not-granted', harness: 'codex', title: 'x', servers: [] }).then(() => 'started', e => String(e.message))`);
     check(a.celler.grants('desktop').includes('claude') && !a.celler.grants('desktop').includes('codex') && /Codex is not one of Vindu's processors/.test(refused) && !a.tasks.size,
       'untick Codex for Desktop: its picker has Claude Code alone, and a task with Codex is refused all the same');
-    await shellPage.click(codex);
+    await page.click(codex);
     await until(async () => await harnesses() === 'claude,codex', 'Codex back in Desktop\'s picker');
     check(true, 'tick it again: Codex is back in Desktop\'s picker, at once');
+    await page.click('#setup-done');
     // as web apps, in full Chromium with a profile of its own, as the person's browser is (its headless shell says nothing
-    // stands in the way of any page): the shell's page and Desktop's install, each opening at its token's address; a page
-    // with no manifest (the test's ledger) does not
+    // stands in the way of any page): Desktop's page installs, opening at its token's address; a page with no manifest (the
+    // test's ledger) does not
     const profile = tmp('profile-'), installs = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true });
     try {
       const asApp = async (url: string) => {
@@ -110,9 +101,9 @@ await (async () => {
         const data = (m.data ? JSON.parse(m.data) : {}) as { name?: string; start_url?: string };
         return { name: data.name, start: data.start_url && new URL(data.start_url, m.url).href, errors: [...m.errors.map(e => e.message), ...installabilityErrors.map(e => e.errorId)] };
       };
-      const shellApp = await asApp(a.url), desktopApp = await asApp(a.desktop.url), none = await asApp(base);
-      check(shellApp.name === 'vindu' && shellApp.start === a.url && !shellApp.errors.length && desktopApp.name === 'Vindu' && desktopApp.start === a.desktop.url && !desktopApp.errors.length,
-        'the shell\'s page and Desktop\'s install as web apps: nothing in the way, a manifest each from its name and icon, opening at its token\'s address');
+      const desktopApp = await asApp(a.url), none = await asApp(base);
+      check(desktopApp.name === 'Vindu' && desktopApp.start === a.url && !desktopApp.errors.length,
+        'Desktop\'s page installs as a web app: nothing in the way, a manifest from its name and icon, opening at its token\'s address');
       check(none.errors.includes('no-manifest'), 'a page with no manifest does not (the test\'s ledger)');
     } finally { await installs.close(); fs.rmSync(profile, { recursive: true, force: true }); }
     await page.bringToFront();
