@@ -1,10 +1,10 @@
 {
   "celler": {
-    "url": "",
-    "sha": ""
+    "url": "https://github.com/matapao/celler.git",
+    "sha": "3ae1569f251500ea5ab395393ea001727c0b0458"
   },
   "vindu": {
-    "url": "",
-    "sha": ""
+    "url": "https://github.com/matapao/vindu.git",
+    "sha": "2ef1049d27160f2577a2b35396f9ce7c0db49581"
   }
 }
