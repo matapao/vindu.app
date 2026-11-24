@@ -33,6 +33,6 @@ test('the trusted core takes only Node\'s own modules and its own, and stays sma
 test('what the rest of the app is, the trusted core does not take: the harnesses, the views, the window', () => {
   for (const m of TRUSTED) {
     const js = fs.readFileSync(path.join(BUILT, `${m}.js`), 'utf8');
-    for (const outside of ['celler', '@matapao/vindu', 'playwright-core', 'electron', '@agentclientprotocol/sdk', '@modelcontextprotocol']) assert.ok(!takes(js).some(s => s === outside || s.startsWith(`${outside}/`)), `${m}.ts takes ${outside}`);
+    for (const outside of ['@matapao/celler', '@matapao/vindu', 'playwright-core', 'electron', '@agentclientprotocol/sdk', '@modelcontextprotocol']) assert.ok(!takes(js).some(s => s === outside || s.startsWith(`${outside}/`)), `${m}.ts takes ${outside}`);
   }
 });
