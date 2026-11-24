@@ -74,7 +74,7 @@ try {
     return fs.lstatSync(installed).isDirectory() && fs.readFileSync(path.join(installed, entry)).equals(fs.readFileSync(path.join(source, entry)));
   };
   check(fs.readFileSync(path.join(CORE, 'dist/src/main.js')).equals(fs.readFileSync(path.join(FRAME, '../dist/src/main.js')))
-    && fs.existsSync(path.join(CORE, 'static', 'shell.html')) && sameBuild('celler', 'dist/index.js')
+    && fs.existsSync(path.join(CORE, 'static', 'shell.html')) && sameBuild('@matapao/celler', 'dist/index.js')
     && ['dist/index.js', 'dist/server.js', 'dist/renderer/shell.js', 'dist/renderer/workspace.js'].every(entry => sameBuild('@matapao/vindu', entry))
     && [
       ['Vindu.txt', '../LICENSE'],
@@ -82,7 +82,7 @@ try {
       ['Celler.txt', '../../celler/LICENSE'],
     ].every(([license, source]) => fs.readFileSync(path.join(BUNDLE, 'Contents/Resources/licenses', license))
       .equals(fs.readFileSync(path.resolve(FRAME, source))))
-    && fs.readdirSync(path.join(CORE, 'node_modules/@matapao')).join() === 'vindu'
+    && fs.readdirSync(path.join(CORE, 'node_modules/@matapao')).sort().join() === 'celler,vindu'
     && outside.length === 0 && !fs.existsSync(path.join(CORE, 'out')),
     `the bundle contains the current Vindu app, UI SDK and Celler builds, with no external links${outside.length ? ` (${outside.slice(0, 3).join(', ')})` : ''}`);
 

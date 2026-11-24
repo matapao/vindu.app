@@ -12,6 +12,9 @@ importers:
 
   .:
     dependencies:
+      '@matapao/celler':
+        specifier: link:../celler
+        version: link:../celler
       '@matapao/vindu':
         specifier: link:../vindu
         version: link:../vindu
@@ -27,9 +30,6 @@ importers:
       '@modelcontextprotocol/server':
         specifier: ^2.4.0
         version: 2.4.0
-      celler:
-        specifier: link:../celler
-        version: link:../celler
       playwright-core:
         specifier: 1.65.0
         version: 1.65.0

@@ -26,7 +26,7 @@
     "@modelcontextprotocol/node": "^2.1.2",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@modelcontextprotocol/server": "^2.4.0",
-    "celler": "link:../celler",
+    "@matapao/celler": "link:../celler",
     "playwright-core": "1.65.0",
     "zod": "^4.6.7"
   },

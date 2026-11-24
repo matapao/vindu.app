@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { CallToolResultSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { createApp, type Adapter, type NodeConfig } from 'celler';
+import { createApp, type Adapter, type NodeConfig } from '@matapao/celler';
 import type { TaskConnection, TaskResult } from './task.js';
 
 type Limits = { tokens: number; cost: number; minutes: number };

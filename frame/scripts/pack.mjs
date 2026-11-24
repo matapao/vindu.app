@@ -21,7 +21,7 @@ if (!dir && system === 'mac') {
   macIdentity = /([A-F0-9]{40}) "Developer ID Application: /.exec(identities)?.[1];
   if (!macIdentity) throw new Error('A macOS release requires a Developer ID Application signing identity.');
 }
-if (!client) for (const f of ['dist/src/main.js', 'dist/src/renderer.bundle.js', 'dist/src/shell-page.bundle.js', 'dist/src/phone.bundle.js', 'dist/src/keys.bundle.js', 'node_modules/celler/dist/index.js', 'node_modules/@matapao/vindu/dist/index.js', 'node_modules/@matapao/vindu/dist/server.js'])
+if (!client) for (const f of ['dist/src/main.js', 'dist/src/renderer.bundle.js', 'dist/src/shell-page.bundle.js', 'dist/src/phone.bundle.js', 'dist/src/keys.bundle.js', 'node_modules/@matapao/celler/dist/index.js', 'node_modules/@matapao/vindu/dist/index.js', 'node_modules/@matapao/vindu/dist/server.js'])
   if (!fs.existsSync(path.join(APP, f))) throw new Error(`${path.join(APP, f)} is missing. Run the app's bootstrap command to build its linked dependencies and app.`);
 if (!fs.existsSync(path.join(FRAME, 'dist', 'src', 'main.js'))) throw new Error('the frame is not built: pnpm build here first');
 fs.rmSync(stage, { recursive: true, force: true }); fs.mkdirSync(stage, { recursive: true });

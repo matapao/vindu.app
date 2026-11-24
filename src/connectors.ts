@@ -4,7 +4,7 @@ import path from 'node:path';
 import { Client, SSEClientTransport, StreamableHTTPClientTransport, isCallToolResult, type Tool } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { toolResourceUri, toolVisibleTo } from '@matapao/vindu/server';
-import type { Adapter, NodeConfig, Run, Write } from 'celler';
+import type { Adapter, NodeConfig, Run, Write } from '@matapao/celler';
 import { z } from 'zod';
 
 const name = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
