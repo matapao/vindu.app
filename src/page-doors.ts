@@ -1,5 +1,6 @@
 // Vindu's pages on the person's other devices. Vindu serves a task's pages on this computer's loopback, each task at an
-// origin of its own (http://<key>.localhost:<port>, and an MCP App's at app-<key>.localhost: Vindu's pages.ts), which no
+// origin of its own (http://<key>.localhost:<port>, an MCP App's at app-<key>.localhost, and the working folder's at
+// work-<key>.localhost or work-<key>-<grant>.localhost: Vindu's pages.ts), which no
 // other device reaches: a browser there looks for <key>.localhost on itself, and its frame stays empty. So each such
 // origin gets a door here, a port of its own on this computer, which the core serves on the person's Wi-Fi and tailnet
 // as it serves its pages (network.ts), and which hands each request on to Vindu's page host as that origin: a port per
@@ -67,7 +68,7 @@ export function pageDoors(o: PageDoorsSetup) {
   };
   /** An address of Vindu's page host: an origin's name (a task's key, or app-<key>) and the rest of it. */
   // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- built from constants and the host's own port, a number
-  const ORIGIN = new RegExp(`^http://((?:app-)?[a-f0-9]{16})\\.localhost:${o.hostPort}(/\\S*)?$`);
+  const ORIGIN = new RegExp(`^http://((?:app-[a-f0-9]{32}|work-[a-f0-9]{32}(?:-[a-f0-9]{24})?|[a-f0-9]{32}))\\.localhost:${o.hostPort}(/\\S*)?$`);
   const doors = new Map<string, Promise<Door>>(); // by the origin's name
   const open = new Map<string, Door>();
   const retiring = new Set<Door>(); // hold the old port until network forwarding has been withdrawn

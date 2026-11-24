@@ -51,7 +51,7 @@ const send = (task: string, e: Msg) => { if (!SENDS.has(String(e.type))) return;
 }
 
 // ── what the computer shows, fitted for here ──────────────────────────────────────────────────────────────────────
-const MEDIA = /^http:\/\/[a-f0-9]{16}\.localhost:\d+\/media\//;
+const MEDIA = /^http:\/\/[a-f0-9]{32}\.localhost:\d+\/media\//;
 const through = (v: unknown): unknown => (typeof v === 'string' ? (MEDIA.test(v) ? `${base}media?u=${encodeURIComponent(v)}` : v)
   : Array.isArray(v) ? v.map(through) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, through(x)])) : v);
 const onComputer = (c: Msg) => (c.component === 'Page' || c.component === 'McpApp'

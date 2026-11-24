@@ -23,6 +23,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { _electron as electron, type ElectronApplication, type Page } from 'playwright-core';
+import { launchEnv } from './launch-env.js';
 
 const ELECTRON = createRequire(import.meta.url)('electron') as unknown as string;
 const FRAME = path.join(import.meta.dirname, '..', '..'), BUILT = path.join(FRAME, 'out', 'client', 'mac-arm64'), BUNDLE = path.join(BUILT, 'vindu.app');
@@ -134,7 +135,7 @@ async function fromItsBundle() {
   });
   await new Promise<void>(r => feed.listen(FEED, '127.0.0.1', r));
   process.on('exit', c => { if (c) console.log(`# its feed was asked for: ${asked.join(', ') || 'nothing'}`); });
-  const env = { ...process.env, VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_UPDATES: `http://127.0.0.1:${FEED}/`, VINDU_CORE: TEST_CORE } as Record<string, string>;
+  const env = launchEnv({ VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_UPDATES: `http://127.0.0.1:${FEED}/`, VINDU_CORE: TEST_CORE });
   app = await electron.launch({ executablePath: PROGRAM, args: ['--use-mock-keychain'], env });
   hear(app); hearing();
   const pid = app.process().pid!;
@@ -173,7 +174,7 @@ async function fromItsArchive() {
   const other = spawn(process.execPath, [TEST_CORE], { env: { ...process.env, VINDU_PORT: String(ELSEWHERE_PORT), VINDU_USER_DATA: otherData }, stdio: ['ignore', 'ignore', 'inherit'] }); spawned.add(other);
   const inspect = await until(() => { try { return (JSON.parse(fs.readFileSync(path.join(otherData, 'test-core.json'), 'utf8')) as { inspect: string }).inspect; } catch { return undefined; } }, 'the core elsewhere');
   const ask = async <T>(p: string) => (await (await fetch(`${inspect}${p}`)).json()) as T;
-  const env = { ...process.env, VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_CORE: TEST_CORE, VINDU_FRAME_SECRETS: 'memory' } as Record<string, string>;
+  const env = launchEnv({ VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_CORE: TEST_CORE, VINDU_FRAME_SECRETS: 'memory' });
   delete env.VINDU_UPDATES;
   const launch = async () => { const a = await electron.launch({ executablePath: ELECTRON, args: [ARCHIVE, '--use-mock-keychain'], env }); hear(a); return a; };
   app = await launch();

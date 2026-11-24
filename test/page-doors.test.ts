@@ -38,7 +38,7 @@ test('a door per origin: told to a device elsewhere, opened by its key alone, to
   const host = await standIn();
   let devices = ['d1'], changes = 0;
   const doors = pageDoors({ hostPort: host.port, devices: () => devices, names: () => ['mini.tail1234.ts.net'], lan: () => ['mini.local'], changed: async () => { changes++; } });
-  const key = 'a'.repeat(16), origin = `http://${key}.localhost:${host.port}`;
+  const key = 'a'.repeat(32), origin = `http://${key}.localhost:${host.port}`;
   try {
     const view = { name: 'v', panels: [{ url: `${origin}/view/a.html?v=2#top` }, { url: `${origin}/media/a1` }], near: `${origin}x`, other: 'http://b.localhost:1/view/x.html', words: 'as they are', n: 3 };
     // a device on the Wi-Fi: each of Vindu's addresses at its origin's door, by the name the device came by, with its key
@@ -59,7 +59,7 @@ test('a door per origin: told to a device elsewhere, opened by its key alone, to
     // the key, once: kept in a cookie for this name, and the page sent on without it
     const entry = await ask(port, `/view/a.html?v=2&vindu-door=${m[2]}`, { host: wifi });
     assert.equal(entry.status, 302); assert.equal(entry.headers.location, '/view/a.html?v=2');
-    assert.match(String(entry.headers['set-cookie']), /^vindu-door-[a-f0-9]{16}=[^;]+; Path=\/; HttpOnly; SameSite=Strict; Secure$/);
+    assert.match(String(entry.headers['set-cookie']), /^vindu-door-[a-f0-9]{32}=[^;]+; Path=\/; HttpOnly; SameSite=Strict; Secure$/);
     assert.match(String((await ask(port, `/x?vindu-door=${m[2]}`, { host: `mini.tail1234.ts.net:${port}` })).headers['set-cookie']), /; Secure$/);
     // with it: on to vindu as the task's origin, the address as it was, and the key kept here
     const taskCookie = String(entry.headers['set-cookie']).split(';')[0];

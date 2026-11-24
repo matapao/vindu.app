@@ -110,7 +110,7 @@ export async function startRemote(o: RemoteOptions): Promise<Remote> {
     }
     if (req.method === 'GET' && what === 'media') { // a photo, a video, a sound from the page host, as it is
       let u: URL; try { u = new URL(url.searchParams.get('u') ?? ''); } catch { res.writeHead(400).end(); return; }
-      if (u.protocol !== 'http:' || !/^[a-f0-9]{16}\.localhost$/.test(u.hostname) || Number(u.port) !== o.media.port || !u.pathname.startsWith('/media/')) { o.log({ phone: 'refused', from: from(req) }); res.writeHead(404).end(); return; }
+      if (u.protocol !== 'http:' || !/^[a-f0-9]{32}\.localhost$/.test(u.hostname) || Number(u.port) !== o.media.port || !u.pathname.startsWith('/media/')) { o.log({ phone: 'refused', from: from(req) }); res.writeHead(404).end(); return; }
       const up = http.request({ host: '127.0.0.1', port: o.media.port, path: u.pathname + u.search, method: 'GET', headers: { host: u.host, ...(req.headers.range ? { range: req.headers.range } : {}) } }, r => {
         const keep = ['content-type', 'content-length', 'accept-ranges', 'content-range'];
         res.writeHead(r.statusCode ?? 502, { ...secure, 'Content-Security-Policy': 'sandbox', ...Object.fromEntries(Object.entries(r.headers).filter(([k]) => keep.includes(k))) });

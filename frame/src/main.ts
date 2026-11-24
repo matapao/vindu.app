@@ -66,7 +66,7 @@ function frame() {
     try {
       const target = new URL(url);
       return new URL(parent).origin === localPages.desktop && target.protocol === 'http:'
-        && target.port === String(localPages.pagesPort) && /^(?:app-)?[0-9a-f]{16}\.localhost$/.test(target.hostname);
+        && target.port === String(localPages.pagesPort) && /^(?:app-[0-9a-f]{32}|work-[0-9a-f]{32}(?:-[0-9a-f]{24})?|[0-9a-f]{32})\.localhost$/.test(target.hostname);
     } catch { return false; }
   };
   /** Any other page: in the person's own browser (web addresses only). */

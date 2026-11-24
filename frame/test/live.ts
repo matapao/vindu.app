@@ -17,6 +17,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import { _electron as electron, type ElectronApplication } from 'playwright-core';
+import { launchEnv } from './launch-env.js';
 
 const ELECTRON = createRequire(import.meta.url)('electron') as unknown as string; // the package gives its program's path
 const FRAME = path.join(import.meta.dirname, '..', '..');
@@ -61,7 +62,7 @@ const data = tmp('frame-live-core-'), frameData = tmp('frame-live-app-');
 fs.writeFileSync(path.join(data, 'settings.json'), JSON.stringify({
   installed: [], apps: { servers: { billing: 'on' } }, servers: [{ type: 'http', name: 'billing', url: `http://127.0.0.1:${(connector.address() as net.AddressInfo).port}/mcp` }],
 }));
-const env = { ...process.env, VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_CORE: path.join(import.meta.dirname, 'core.js') } as Record<string, string>;
+const env = launchEnv({ VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_CORE: path.join(import.meta.dirname, 'core.js') });
 
 let code = 1, app: ElectronApplication | undefined;
 try {
@@ -147,13 +148,13 @@ try {
   check(cookies.person.includes('person-synthetic') && cookies.model === '', 'the model\'s page carries none of the person\'s sign-ins: a session of its own');
 
   await call('show_view', { name: 'summary', title: 'Summary', panels: [{ id: 'report', card: 'page', html: '<!doctype html><p>Reviewed task output</p>' }] });
-  const report = await until(() => grid.frames().find(f => /^http:\/\/[0-9a-f]{16}\.localhost:/.test(f.url())), 'the task output inside Electron');
+  const report = await until(() => grid.frames().find(f => /^http:\/\/[0-9a-f]{32}\.localhost:/.test(f.url())), 'the task output inside Electron');
   await report.getByText('Reviewed task output', { exact: true }).waitFor();
   check(true, 'task HTML renders in its own origin inside the desktop');
 
   const filled = await ask<{ started?: boolean; failed?: string[] }>('/provider-pane?task=' + encodeURIComponent(task));
   check(filled.started && !filled.failed?.length, `the task reads its selected connector through Celler (${JSON.stringify(filled)})`);
-  const invoice = await until(() => grid.frames().find(f => f.parentFrame() === desk && /^http:\/\/app-[a-f0-9]{16}\.localhost:/.test(f.url())), 'the provider iframe inside the task');
+  const invoice = await until(() => grid.frames().find(f => f.parentFrame() === desk && /^http:\/\/app-[a-f0-9]{32}\.localhost:/.test(f.url())), 'the provider iframe inside the task');
   await invoice.getByText(receipt, { exact: true }).waitFor();
   check(true, 'the provider resource renders its live tool result inside the Electron task');
 
