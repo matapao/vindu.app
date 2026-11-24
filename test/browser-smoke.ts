@@ -243,9 +243,15 @@ await (async () => {
     await until(() => js<boolean>(`!document.querySelector('${ask}')`), 'the ask answered');
     await sleep(300);
     check(pageOf('ledger')!.url === base, 'no: the page stays where it was');
+    // the page reaching for it again by itself: a site the person refused stays refused, and nothing is asked
     await call('act_in_view', { view: 'ledger', action: 'click', ref: link.ref });
-    await until(() => js<boolean>(`!!document.querySelector('${ask}')`), 'asked again: a no holds only for that time');
+    await sleep(300);
+    check(!(await js<boolean>(`!!document.querySelector('${ask}')`)) && pageOf('ledger')!.url === base, 'the page reaching for it again: a refused site stays refused, unasked');
+    // the model asking for the address itself: the person is asked again, each time until a yes
+    const going = call('act_in_view', { view: 'ledger', action: 'go_to', url: other });
+    await until(() => js<boolean>(`!!document.querySelector('${ask}')`), 'the model asks for it itself: asked again');
     check(await press(ask, 'Allow'), 'the person says yes');
+    await going;
     await until(() => pageOf('ledger')?.url === other, 'the other site, loaded');
     const again = await call('act_in_view', { view: 'ledger', action: 'go_to', url: `${other}?again` });
     check(again.snapshot?.title === 'Elsewhere (synthetic)' && !(await js<boolean>(`!!document.querySelector('${ask}')`)), 'the same site again: no second ask');
@@ -395,16 +401,23 @@ await (async () => {
     check(await press(ask, 'No'), 'the person answers it in front');
 
     // a view's hooks: the system tells the person what it was written to, and starts a job once they turn it on
-    const hooked = { name: 'watch', title: 'Watch', panels: [{ id: 'total', card: 'kpi', title: 'Overdue', data: 75000 }],
-      hooks: [{ label: 'Who first', when: { crosses: { panel: 'total', above: 50000 } }, do: { notify: 'More than 50 000 is overdue', job: { prompt: 'Who should be chased first? [echo]' } } }] };
+    const overdue = a.tasks.get(task)!.observe({ connector: 'ledger', tool: 'overdue', input: {}, result: { content: [{ type: 'text', text: JSON.stringify([{ customer: 'Havgap Media', amount: 75000 }]) }] } });
+    const hooked = { name: 'watch', title: 'Watch', panels: [
+      { id: 'total', card: 'kpi', title: 'Overdue', data: 75000 },
+      { id: 'rows', card: 'table', title: 'Invoices', from: overdue, columns: ['customer', 'amount'] },
+      { id: 'row', card: 'record', title: 'Invoice', detail: { of: 'rows' } },
+    ], hooks: [
+      { when: { crosses: { panel: 'total', above: 50000 } }, do: { notify: 'More than 50 000 is overdue' } },
+      { label: 'Who first', when: { picked: 'rows' }, do: { job: { prompt: 'Who should be chased first? [echo]' } } },
+    ] };
     const w1 = await call('show_view', hooked);
-    check(w1.hooks?.[0]?.state === 'off until the person turns it on, in the window', 'a hook\'s job is off until the person turns it on');
+    check(w1.hooks?.[1]?.state === 'off until the person turns it on, in the window', 'a hook\'s job is off until the person turns it on');
     await until(() => js<boolean>(`document.getElementById('thread').textContent.includes('Watch: More than 50 000 is overdue')`), 'the hook\'s notice');
     check(true, 'the hook tells the person what it was written to, by itself');
     check(await press(pane('watch'), 'Turn on'), 'the person turns the job on, in its view');
     await until(() => js<boolean>(`(document.querySelector('${pane('watch')}')?.textContent ?? '').includes('· on')`), 'on');
-    await call('show_view', { ...hooked, panels: [{ id: 'total', card: 'kpi', title: 'Overdue', data: 1000 }] });
-    await call('show_view', hooked); // above the line again: the hook runs, and its job starts
+    // a row picked sets the job off, as the window sends it: the model showing the view again would take the yes with it
+    a.tasks.get(task)!.event({ type: 'view', view: 'watch', action: 'select', panel: 'p_rows', from: 0 });
     const job = await until(() => a.activity().entries.find(e => e.job === 'Who first')?.id, 'the job, as a task of its own');
     check(a.front() === task && await front() === task, 'the job runs in the background: the task in front stays in front');
     await until(() => a.tasks.has(job) && a.activity().entries.find(e => e.id === job)?.state === 'done', 'the job done', 60_000);

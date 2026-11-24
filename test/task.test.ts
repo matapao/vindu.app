@@ -74,10 +74,11 @@ test('what the person sends from a page reaches the next turn, once: the host he
     assert.deepEqual(sent, ['run']);
     assert.deepEqual(t.unheard().map(x => [x.view, x.panel, x.sent]), [['run', 'runner', { command: 'npm test' }]]);
     text = ''; await t.prompt('The person sent what is above from a page in the window.');
-    assert.match(JSON.parse(text).context, /p\d+: the person sent from the page panel "runner" in view "run" → \{"command":"npm test"\}/);
+    // the page's value, said as the page's: never as the person's own words
+    assert.match(JSON.parse(text).context, /p\d+: the page panel "runner" in view "run" sent, on the person's click or key \(the value is the page's, not the person's words\) → \{"command":"npm test"\}/);
     assert.deepEqual(t.unheard(), []); // heard: the next turn does not say it again
     text = ''; await t.prompt('Thanks.');
-    assert.doesNotMatch(JSON.parse(text).context, /sent from the page/);
+    assert.doesNotMatch(JSON.parse(text).context, /the page panel "runner" in view "run" sent/);
   } finally { await t.close(); await uiProvider.close(); }
 });
 test('a terminal is a view of the UI server: the person shares it; the model reads it and runs a command only on their yes; what it read is kept, exactly', async () => {

@@ -11,6 +11,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { _electron as electron, type ElectronApplication, type Page } from 'playwright-core';
+import { launchEnv } from './launch-env.js';
 
 const ELECTRON = createRequire(import.meta.url)('electron') as unknown as string;
 const FRAME = path.join(import.meta.dirname, '..', '..');
@@ -33,7 +34,7 @@ const inspect = await until(() => { try { return (JSON.parse(fs.readFileSync(pat
 const ask = async <T>(p: string) => (await (await fetch(`${inspect}${p}`)).json()) as T;
 const data = tmp('frame-here-core-'), frameData = tmp('frame-elsewhere-app-');
 fs.writeFileSync(path.join(data, 'settings.json'), JSON.stringify({ installed: [] }));
-const env = { ...process.env, VINDU_PORT: String(HERE_PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_CORE: path.join(import.meta.dirname, 'core.js'), VINDU_FRAME_SECRETS: 'memory' } as Record<string, string>;
+const env = launchEnv({ VINDU_PORT: String(HERE_PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_CORE: path.join(import.meta.dirname, 'core.js'), VINDU_FRAME_SECRETS: 'memory' });
 
 let code = 1, app: ElectronApplication | undefined;
 try {

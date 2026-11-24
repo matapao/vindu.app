@@ -15,6 +15,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { _electron as electron, type ElectronApplication } from 'playwright-core';
+import { launchEnv } from './launch-env.js';
 
 const ELECTRON = createRequire(import.meta.url)('electron') as unknown as string; // the package gives its program's path
 const FRAME = path.join(import.meta.dirname, '..', '..');
@@ -35,7 +36,7 @@ fs.writeFileSync(path.join(appDir, 'app.json'), JSON.stringify({ id: 'other-app'
 fs.writeFileSync(path.join(appDir, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="#888"/></svg>');
 fs.writeFileSync(path.join(appDir, 'serve.mjs'), "import http from 'node:http'; const at = `/${process.env.APP_TOKEN}/`; http.createServer((q, r) => (q.url === at ? r.writeHead(200, { 'Content-Type': 'text/html' }).end('<!doctype html><title>Other App</title><h1>Other App (synthetic)</h1>') : r.writeHead(404).end())).listen(Number(process.env.PORT), '127.0.0.1');");
 fs.writeFileSync(path.join(data, 'settings.json'), JSON.stringify({ installed: [appDir] }));
-const env = { ...process.env, VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData } as Record<string, string>;
+const env = launchEnv({ VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData });
 const ADDRESS = /^http:\/\/localhost:(\d+)\/([\w-]{20,})\/(#.*)?$/;
 const linked = (url: string, link: string) => url.endsWith(`/#vindu-link=${encodeURIComponent(link)}`) && ADDRESS.test(url);
 const tile = (id: string) => `#grid .app[data-app="${id}"]`;

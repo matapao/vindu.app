@@ -14,6 +14,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { _electron as electron, type ElectronApplication } from 'playwright-core';
+import { launchEnv } from './launch-env.js';
 
 const FRAME = path.join(import.meta.dirname, '..', '..'), BUNDLE = path.join(FRAME, 'out', 'mac-arm64', 'vindu.app');
 const PROGRAM = path.join(BUNDLE, 'Contents', 'MacOS', 'vindu'), CORE = path.join(BUNDLE, 'Contents', 'Resources', 'core');
@@ -47,7 +48,7 @@ const feed = http.createServer((q, r) => {
   r.writeHead(200, { 'Content-Type': 'text/yaml' }).end(`version: ${newer}\nfiles:\n  - url: ${zip}\n    sha512: ${sha512}\n    size: 1000\npath: ${zip}\nsha512: ${sha512}\nreleaseDate: '2026-11-14T12:00:00.000Z'\n`);
 });
 await new Promise<void>(r => feed.listen(FEED, '127.0.0.1', r));
-const env = { ...process.env, VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_UPDATES: `http://127.0.0.1:${FEED}/` } as Record<string, string>;
+const env = launchEnv({ VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_UPDATES: `http://127.0.0.1:${FEED}/` });
 delete env.VINDU_CORE; // the core inside the bundle, never another
 const wasRegistered = registered();
 

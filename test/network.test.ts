@@ -376,7 +376,7 @@ test("on the Wi-Fi, a task's page reaches a paired device through a door of its 
     const page = (s: { events: { ch: string; a: unknown[] }[] }, re: RegExp) => s.events.filter(e => e.ch === 'view' && e.a[0] === 'pages-1').map(e => re.exec(JSON.stringify(e.a))?.[0]).find(Boolean);
     const THERE = /https:\/\/testbox\.local:\d+\/view\/[^"]+/;
     await until(() => !!page(phone, THERE), 'the view on the phone');
-    assert.ok(page(here, /http:\/\/[a-f0-9]{16}\.localhost:\d+\/view\/[^"]+/), 'here, as vindu serves it');
+    assert.ok(page(here, /http:\/\/[a-f0-9]{32}\.localhost:\d+\/view\/[^"]+/), 'here, as vindu serves it');
     assert.equal(page(here, THERE), undefined);
     const told = new URL(page(phone, THERE)!), door = Number(told.port);
     assert.ok(told.searchParams.get('vindu-door'));

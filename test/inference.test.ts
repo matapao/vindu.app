@@ -47,16 +47,22 @@ test('a saved custom endpoint does not appear or start a harness', async () => {
   }
 });
 
-async function showJobHook(task: OpenTask, total: number) {
+/** A view with a job on a row picked: a pick sets it off without the model showing the view again, which would take
+ *  the person's yes with the view it replaces. */
+async function showJobHook(task: OpenTask) {
+  const rows = task.observe({ connector: 'ledger', tool: 'list', input: {}, result: { content: [{ type: 'text', text: JSON.stringify([{ name: 'first' }, { name: 'second' }]) }] } });
   const client = new Client({ name: 'job-hook-test', version: '1' });
   try {
     await client.connect(new StreamableHTTPClientTransport(new URL(task.ui.url)));
     const result = await client.callTool({ name: 'show_view', arguments: {
-      name: 'watch', title: 'Watch', panels: [{ id: 'total', card: 'kpi', data: total }],
-      hooks: [{ label: 'Check total', when: { crosses: { panel: 'total', above: 10 } }, do: { job: { prompt: 'Check this total.' } } }],
+      name: 'watch', title: 'Watch', panels: [
+        { id: 'rows', card: 'table', title: 'Rows', from: rows, columns: ['name'] },
+        { id: 'row', card: 'record', title: 'Row', detail: { of: 'rows' } },
+      ],
+      hooks: [{ label: 'Check row', when: { picked: 'rows' }, do: { job: { prompt: 'Check the row picked.' } } }],
     } });
     const block = result.content[0];
-    assert.ok(!result.isError && block.type === 'text');
+    assert.ok(!result.isError && block.type === 'text', JSON.stringify(result.content));
     return (JSON.parse(block.text) as { hooks: { state: string }[] }).hooks[0].state;
   } finally { await client.close(); }
 }
@@ -71,7 +77,7 @@ test('the default desktop advertises no processors and can host a detached task'
     await call(app.desktop.url, 'task:create', { id: 'read-only' });
     const task = app.tasks.get('read-only')!;
     assert.equal(task.attached, false);
-    assert.equal(await showJobHook(task, 0), 'off: jobs are off in this app');
+    assert.equal(await showJobHook(task), 'off: jobs are off in this app');
     assert.equal(task.event({ type: 'action', name: 'hook', view: 'watch', context: { n: 0, on: true } }), false);
     await assert.rejects(call(app.desktop.url, 'task:prompt', 'read-only', 'Hello'), /No consumer is attached/);
     await call(app.desktop.url, 'task:close', 'read-only');
@@ -87,11 +93,11 @@ test('a consumer can decline a requested desktop task or a job without leaving i
     await assert.rejects(call(app.desktop.url, 'task:create', { id: 'declined', harness: 'reports' }), /No consumer is attached/);
     await call(app.desktop.url, 'task:create', { id: 'parent', harness: 'reports' });
     const parent = app.tasks.get('parent')!;
-    assert.equal(await showJobHook(parent, 0), 'off until the person turns it on, in the window');
+    assert.equal(await showJobHook(parent), 'off until the person turns it on, in the window');
     assert.ok(parent.event({ type: 'action', name: 'hook', view: 'watch', context: { n: 0, on: true } }));
-    await showJobHook(parent, 20);
+    parent.event({ type: 'view', view: 'watch', action: 'select', panel: 'p_rows', from: 0 });
     const history = path.join(directory, 'tasks', 'parent', 'ui-calls.jsonl');
-    await vi.waitFor(() => assert.match(fs.readFileSync(history, 'utf8'), /did not start its job: No consumer is attached/));
+    await vi.waitFor(() => assert.match(fs.readFileSync(history, 'utf8'), /did not start its job: No consumer is attached/), { timeout: 10_000 });
     assert.deepEqual([...app.tasks.keys()], ['parent']);
     assert.deepEqual(app.activity().entries.map(entry => entry.id), ['parent']);
   } finally { await app.close(); fs.rmSync(directory, { recursive: true, force: true }); }
@@ -116,7 +122,7 @@ test('restart retains task identity and its record, rechecks grants and retires 
     await call(app.desktop.url, 'task:create', { id: 'original', harness: 'reports' });
     const task = app.tasks.get('original')!;
     const stored = task.observe({ connector: 'ledger', tool: 'get', input: {}, result: { content: [{ type: 'text', text: 'Original' }] } });
-    await showJobHook(task, 5);
+    await showJobHook(task);
     assert.ok(task.event({ type: 'attach', view: 'watch', on: true }));
     assert.ok(task.event({ type: 'collapse', view: 'watch' }));
     await call(app.desktop.url, 'activity:pin', 'original', true);
