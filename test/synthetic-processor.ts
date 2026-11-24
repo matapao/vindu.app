@@ -1,13 +1,14 @@
-// The tests' processor, in place of a harness. It receives the same UI endpoint a harness gives its MCP client.
+// The tests' processor, in place of a harness: it calls no model. It receives the same UI endpoint a harness gives its
+// MCP client.
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import type { Switch, TaskConnection, TaskConsumer } from '../src/task.js';
+import type { Switch, TaskConnection, TaskProcessor } from '../src/task.js';
 
 export const processors = [{ id: 'claude', name: 'Claude Code' }, { id: 'codex', name: 'Codex' }];
 
 const page = '<!doctype html><title>Run</title><input id="cmd" value="npm test"><button id="go">Run</button><p id="out"></p>'
   + '<script>document.getElementById("go").onclick = async () => { await task.send({command: document.getElementById("cmd").value}); document.getElementById("out").textContent = "sent"; };</script>';
 
-export function connectConsumer(task: TaskConnection): TaskConsumer {
+export function connectSyntheticProcessor(task: TaskConnection): TaskProcessor {
   const switches: Switch[] = [{
     id: 'report', name: 'Report', value: 'short', type: 'select', via: 'config',
     options: [{ value: 'short', name: 'Short' }, { value: 'full', name: 'Full' }],
@@ -20,7 +21,7 @@ export function connectConsumer(task: TaskConnection): TaskConsumer {
     },
     async send({ text, context, signal }) {
       const endpoint = task.mcpServers.find(server => server.name === 'ui')!;
-      const client = new Client({ name: 'consumer-test', version: '1' });
+      const client = new Client({ name: 'synthetic-processor', version: '1' });
       const call = async (name: string, args: Record<string, unknown> = {}) => {
         const result = await client.callTool({ name, arguments: args });
         const block = result.content[0];

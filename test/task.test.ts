@@ -2,7 +2,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { connectConsumer } from './consumer.js';
+import { connectSyntheticProcessor } from './synthetic-processor.js';
 import os from 'node:os';
 import path from 'node:path';
 import { startVindu, type Shown } from '@matapao/vindu/server';
@@ -18,7 +18,7 @@ test('the processor supplies settings, asks, activity and exact results to the t
   const asks: Shown[] = []; const opened: string[] = []; const switched: Switch[][] = []; let text = '';
   const activity: unknown[] = [];
   const cwd = tmp('work-'), home = tmp('home-'), data = tmp('data-');
-  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectConsumer, env: { PATH: '/bin', HOME: home },
+  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectSyntheticProcessor, env: { PATH: '/bin', HOME: home },
     onShow: v => {
       if (!v.ask) return;
       asks.push(v); const k = v.ask; const answer = (context: Record<string, unknown>) => setTimeout(() => t.event({ type: 'action', view: v.name, name: 'answer', context: { ticket: k.ticket, ...context } }), 20);
@@ -57,7 +57,7 @@ test('what the person sends from a page reaches the next turn, once: the host he
   const uiProvider = await startVindu();
   const sent: string[] = []; let text = '';
   const cwd = tmp('work-'), home = tmp('home-'), data = tmp('data-');
-  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectConsumer, env: { PATH: '/bin', HOME: home },
+  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectSyntheticProcessor, env: { PATH: '/bin', HOME: home },
     onShow: v => {
       if (!v.ask) return; const k = v.ask; const answer = (context: Record<string, unknown>) => setTimeout(() => t.event({ type: 'action', view: v.name, name: 'answer', context: { ticket: k.ticket, ...context } }), 20);
       if (k.kind === 'permission') answer({ choice: k.choices![0], n: 0 });
@@ -84,7 +84,7 @@ test('what the person sends from a page reaches the next turn, once: the host he
 test('a terminal is a view of the UI server: the person shares it; the model reads it and runs a command only on their yes; what it read is kept, exactly', async () => {
   const uiProvider = await startVindu();
   const cwd = tmp('work-'), home = tmp('home-'), data = tmp('data-'); let text = ''; const asked: string[] = [];
-  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectConsumer, env: { PATH: process.env.PATH ?? '/bin', HOME: home, HISTFILE: '/dev/null' },
+  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectSyntheticProcessor, env: { PATH: process.env.PATH ?? '/bin', HOME: home, HISTFILE: '/dev/null' },
     views: { terminal: { shell: 'bash', login: false, run: true } }, onText: s => { text += s; },
     onShow: v => { // the person, in the window: yes to the first command the model wants to run, no to the second
       if (v.ask?.kind !== 'operation' || !v.ask.confirm) return;
@@ -136,7 +136,7 @@ test('a static view: the app reads its sources itself, read-only tools only; wha
   const template = { name: 'Overdue', about: 'What is overdue, and a note', slots: {
     invoices: { title: 'Invoices', block: 'table', columns: ['number', 'amount'], source: { server: 'accounts', tool: 'list_invoices', args: { status: 'overdue' } } },
     note: { title: 'Note', block: 'text', by: 'person', ask: { fields: { text: { type: 'string', title: 'Note' } } } } } };
-  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectConsumer, env: { PATH: process.env.PATH ?? '/bin', HOME: home },
+  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectSyntheticProcessor, env: { PATH: process.env.PATH ?? '/bin', HOME: home },
     router, template, person: { name: 'Kari' },
     sources: {
       isRead: (server, tool) => server === 'accounts' && tool === 'list_invoices',
@@ -181,7 +181,7 @@ test('a static view: the app reads its sources itself, read-only tools only; wha
 test('slash commands and ordinary text reach the processor exactly as typed', async () => {
   const uiProvider = await startVindu();
   const cwd = tmp('work-'), home = tmp('home-'), data = tmp('data-'); let text = '';
-  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectConsumer, env: { PATH: '/bin', HOME: home },
+  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectSyntheticProcessor, env: { PATH: '/bin', HOME: home },
     onShow: () => undefined, onText: s => { text += s; } });
   try {
     await t.prompt('/compact [echo]');
@@ -196,12 +196,12 @@ test('slash commands and ordinary text reach the processor exactly as typed', as
 test('the device\'s own data: a server of the app\'s, each kind read only after the person\'s yes in the window, once a task, kept as exact', async () => {
   const uiProvider = await startVindu();
   const cwd = tmp('work-'), home = tmp('home-'), data = tmp('data-'); const shown: Shown[] = []; const notes: string[] = []; let answer = 'answer';
-  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectConsumer, env: { PATH: process.env.PATH ?? '/bin', HOME: home },
+  const t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectSyntheticProcessor, env: { PATH: process.env.PATH ?? '/bin', HOME: home },
     device: [{ name: 'read_clipboard', description: 'The text on the clipboard now.', asks: 'your clipboard', read: () => ({ text: 'INV-2026-0412 is paid' }) }],
     onText: () => undefined, onNote: n => notes.push(n),
     onShow: v => { if (v.ask?.kind !== 'permission') return; shown.push(v); const k = v.ask; setTimeout(() => t.event({ type: 'action', view: v.name, name: 'answer', context: { ticket: k.ticket, choice: k.choices![answer === 'answer' ? 0 : 1], n: answer === 'answer' ? 0 : 1 } }), 20); } });
   const { Client, StreamableHTTPClientTransport } = await import('@modelcontextprotocol/client');
-  const mcp = new Client({ name: 'harness', version: '1' }); await mcp.connect(new StreamableHTTPClientTransport(new URL(t.device!.url))); // as the harness reaches it
+  const mcp = new Client({ name: 'harness', version: '1' }); await mcp.connect(new StreamableHTTPClientTransport(new URL(t.device!.url), { requestInit: { headers: t.device!.headers } })); // as the harness reaches it
   try {
     const tools = await mcp.listTools();
     assert.deepEqual(tools.tools.map(x => [x.name, x.annotations?.readOnlyHint]), [['read_clipboard', true]]);
@@ -216,10 +216,10 @@ test('the device\'s own data: a server of the app\'s, each kind read only after 
     assert.match(notes.join(' | '), /you let the model read your clipboard \| the model read read_clipboard from this device \(r1\)/);
   } finally { await mcp.close(); await t.close(); }
   answer = 'deny'; shown.length = 0;
-  const t2 = await openTask({ harness: 'claude', cwd, dataDir: tmp('data-'), home, uiProvider, connect: connectConsumer, env: { PATH: process.env.PATH ?? '/bin', HOME: home },
+  const t2 = await openTask({ harness: 'claude', cwd, dataDir: tmp('data-'), home, uiProvider, connect: connectSyntheticProcessor, env: { PATH: process.env.PATH ?? '/bin', HOME: home },
     device: [{ name: 'read_clipboard', description: 'The text on the clipboard now.', asks: 'your clipboard', read: () => ({ text: 'never read' }) }],
     onText: () => undefined, onShow: v => { if (v.ask?.kind !== 'permission') return; shown.push(v); const k = v.ask; setTimeout(() => t2.event({ type: 'action', view: v.name, name: 'answer', context: { ticket: k.ticket, choice: k.choices![1], n: 1 } }), 20); } });
-  const mcp2 = new Client({ name: 'harness', version: '1' }); await mcp2.connect(new StreamableHTTPClientTransport(new URL(t2.device!.url)));
+  const mcp2 = new Client({ name: 'harness', version: '1' }); await mcp2.connect(new StreamableHTTPClientTransport(new URL(t2.device!.url), { requestInit: { headers: t2.device!.headers } }));
   try {
     const no = await mcp2.callTool({ name: 'read_clipboard', arguments: {} }) as { content: { text: string }[]; isError?: boolean };
     assert.equal(no.isError, true); assert.equal(no.content[0].text, 'not read: the person said no to your clipboard');
@@ -231,7 +231,7 @@ test('a template\'s first question can be answered while its task opens: the ans
   const uiProvider = await startVindu();
   const cwd = tmp('work-'), home = tmp('home-'), data = tmp('data-'); const router: TaskRouter = {}; let answeredEarly = false; let t: Awaited<ReturnType<typeof openTask>> | undefined;
   const template = { name: 'Follow-up', inputs: { customer: { type: 'string', title: 'Customer' } }, slots: { note: { title: 'Note', block: 'text', needs: 'a note' } } };
-  t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectConsumer, env: { PATH: process.env.PATH ?? '/bin', HOME: home }, template, router,
+  t = await openTask({ harness: 'claude', cwd, dataDir: data, home, uiProvider, connect: connectSyntheticProcessor, env: { PATH: process.env.PATH ?? '/bin', HOME: home }, template, router,
     onText: () => undefined,
     onShow: v => { if (v.ask?.op !== 'start Follow-up') return; const k = v.ask; answeredEarly = !t; // the task is not open yet
       queueMicrotask(() => {
@@ -251,7 +251,7 @@ test('a new task from a view: a fresh session in the same folder, from the view 
   const cwd = tmp('work-'), home = tmp('home-'); const env = { PATH: '/bin', HOME: home };
   const invoices = [{ number: 'INV-2026-0412', amount: 31050 }, { number: 'INV-2026-0418', amount: 19800 }, { number: 'INV-2026-0431', amount: 17160 }];
   const shownA: Shown[] = [], shownB: Shown[] = []; let text = '';
-  const a = await openTask({ harness: 'claude', cwd, dataDir: tmp('data-a-'), home, uiProvider, connect: connectConsumer, env, onShow: v => shownA.push(v), onText: () => undefined });
+  const a = await openTask({ harness: 'claude', cwd, dataDir: tmp('data-a-'), home, uiProvider, connect: connectSyntheticProcessor, env, onShow: v => shownA.push(v), onText: () => undefined });
   const mcp = new Client({ name: 'harness', version: '1' });
   let b: Awaited<ReturnType<typeof openTask>> | undefined;
   try {
@@ -261,7 +261,7 @@ test('a new task from a view: a fresh session in the same folder, from the view 
     const n = shownA.length;
     a.event({ type: 'action', view: 'inv', name: 'view_action', context: { action: 'sort', panel: 'rows', field: 'amount' } }); // the person sorts it
     await until(() => shownA.length > n);
-    b = await openTask({ harness: 'claude', cwd, dataDir: tmp('data-b-'), home, uiProvider, connect: connectConsumer, env, from: { snapshot: a.snapshot(), record: a.record, task: 'A' },
+    b = await openTask({ harness: 'claude', cwd, dataDir: tmp('data-b-'), home, uiProvider, connect: connectSyntheticProcessor, env, from: { snapshot: a.snapshot(), record: a.record, task: 'A' },
       onShow: v => shownB.push(v), onText: s => { text += s; } });
     await b.branched;
     const c = b.record.get('r1') as any; // carried, exactly

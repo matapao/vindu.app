@@ -151,28 +151,6 @@ try {
   await invoice.getByText(receipt, { exact: true }).waitFor();
   check(true, 'the provider resource renders its live tool result inside the Electron task');
 
-  const layoutEndpoint = await ask<typeof endpoint>('/layout?task=' + encodeURIComponent(task));
-  const coordinator = new Client({ name: 'frame-layout', version: '1' });
-  try {
-    await coordinator.connect(new StreamableHTTPClientTransport(new URL(layoutEndpoint.url), { requestInit: { headers: layoutEndpoint.headers } }));
-    const tools = await coordinator.listTools();
-    check(tools.tools.length === 1 && tools.tools[0].name === 'read_layout', 'the task gives its layout coordinator one read-only tool');
-    const geometry = await until(async () => {
-      const reply = await coordinator.callTool({ name: 'read_layout', arguments: {} });
-      if (reply.isError || reply.content.length !== 1 || reply.content[0].type !== 'text') throw new Error('Expected one text layout report');
-      const layout = JSON.parse(reply.content[0].text) as { viewport: { w: number; h: number; source: string }; mode: string; paneCount: number };
-      const actual = await desk.locator('.task:not([hidden]) .vindu-shell').evaluate(shell => {
-        const area = shell.querySelector<HTMLElement>('.vindu-desk')!;
-        return { w: area.clientWidth, h: area.clientHeight, mode: (shell as HTMLElement).dataset.mode, panes: shell.querySelectorAll('.vindu-bar-view:not(.is-collapsed)').length };
-      });
-      if (actual.w <= 0 || actual.h <= 0 || actual.panes === 0 || layout.viewport.source !== 'reported' ||
-          layout.viewport.w !== actual.w || layout.viewport.h !== actual.h || layout.mode !== actual.mode || layout.paneCount !== actual.panes) return;
-      return JSON.stringify(reply);
-    }, 'the coordinator sees the open panes and viewport of the Electron task');
-    check([receipt, resourceUri, base, 'invoice', 'billing', 'ledger', 'reviewed task output'].every(value => !geometry.toLowerCase().includes(value.toLowerCase())),
-      'the coordinator reads the Electron viewport and pane count while connector output, page contents, titles and addresses stay private');
-  } finally { await coordinator.close(); }
-
   // the task closed: its pages go from the window, and from the core
   await js(`desktop.close(${JSON.stringify(task)})`);
   await until(async () => (await views()).length === 0 && (await ask<string[]>('/tasks')).length === 0, 'the task closed');

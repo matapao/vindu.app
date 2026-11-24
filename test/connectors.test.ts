@@ -54,8 +54,8 @@ test('the connector host stages the exact write for the person to review and per
   assert.deepEqual(bridge.nodes.map(node => node.id), ['accounts.read', 'accounts.write']);
   assert.ok(!JSON.stringify(bridge.nodes).includes(KEY));
   const [read, write] = bridge.nodes;
-  host.register('records', ['review', 'connector:accounts']);
-  const common = { owner: 'records', processor: 'review', cwd: api.directory, adapters: bridge.adapters };
+  host.register(['review', 'connector:accounts']);
+  const common = { processor: 'review', cwd: api.directory, adapters: bridge.adapters };
   try {
     const result = await host.callTool({ ...common, node: read, input: { method: 'POST', path: '/search', body: { filter: 'open' } } });
     assert.ok(!result.isError);
@@ -86,24 +86,26 @@ test('the connector host stages the exact write for the person to review and per
   } finally { await host.close(); await api.close(); }
 });
 
-test('two owners can read concurrently through one connector with their own grants and results', async () => {
+test('two Desktop tasks read concurrently through one connector, each with its own folder, check and result', async () => {
   const api = await fixture();
   const host = openCellerHost(path.join(api.directory, 'host'));
   const bridge = await connectorTools(loadConnectors(api.directory).connectors, { key: () => KEY, readsOnly: true });
-  const requests = [{ owner: 'billing', path: '/invoices' }, { owner: 'purchasing', path: '/orders' }];
+  host.register(['review']);
+  const tasks = ['billing', 'purchasing'].map(name => ({ name, cwd: fs.mkdtempSync(path.join(api.directory, `${name}-`)), path: `/${name}` }));
   const checked = new Set<string>();
   try {
-    const replies = await Promise.all(requests.map(({ owner, path: resource }) => {
-      host.register(owner, ['review']);
-      return host.callTool({ owner, processor: 'review', cwd: api.directory, node: bridge.nodes[0], adapters: bridge.adapters,
-        input: { path: resource }, mayUse: connector => { checked.add(owner); return connector === 'accounts'; } });
-    }));
+    const replies = await Promise.all(tasks.map(task => host.callTool({ processor: 'review', cwd: task.cwd, node: bridge.nodes[0], adapters: bridge.adapters,
+      input: { path: task.path }, mayUse: connector => { checked.add(task.name); return connector === 'accounts'; } })));
     assert.deepEqual([...checked].sort(), ['billing', 'purchasing']);
     replies.forEach((reply, index) => {
       assert.ok(!reply.isError);
-      assert.ok(JSON.stringify(reply.content).includes(requests[index].path));
+      assert.ok(JSON.stringify(reply.content).includes(tasks[index].path));
     });
-    assert.deepEqual(api.requests.map(request => request.url).sort(), ['/v1/invoices', '/v1/orders']);
+    assert.deepEqual(api.requests.map(request => request.url).sort(), ['/v1/billing', '/v1/purchasing']);
+    // a task whose connector is no longer set up is refused, whatever the other task may use: the call reaches no tool
+    await assert.rejects(host.callTool({ processor: 'review', cwd: tasks[0].cwd, node: bridge.nodes[0], adapters: bridge.adapters,
+      input: { path: '/billing' }, mayUse: () => false }), /Unknown tool/);
+    assert.equal(api.requests.length, 2);
   } finally { await host.close(); await api.close(); }
 });
 

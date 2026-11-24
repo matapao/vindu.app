@@ -26,8 +26,11 @@ pnpm --dir frame start
 
 ## Processors
 
-A task runs on a processor. `startApp` in `src/app.ts` takes the processors (`processors`) and how a task connects
-to the one it runs on (`connect`). `pnpm start` and the Electron app start with none yet, so their tasks show views
-and take no prompt.
+A task runs on a processor. `startApp` in `src/app.ts` takes the processors (`processors`), how a task connects to
+the one it runs on (`connect`), and what Settings says each still needs (`checkProcessors`). `pnpm start` and the
+Electron app give it the claude and codex CLIs found on this computer as they start (`src/processors.ts`). Each turn
+runs the task's CLI in the task's folder, on the CLI's own model and sign-in, and asks the person in the task's thread
+before the CLI acts. Settings says which CLI is missing, and what one still needs: Codex signs in for Vindu in a home
+of its own, the `codex` folder in the app's data.
 
 See [AGENTS.md](AGENTS.md) for checks and packaging.

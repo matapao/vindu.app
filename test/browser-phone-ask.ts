@@ -3,7 +3,7 @@
 // changes until it goes. Desktop's page and the phone's are opened in a Chromium of the test's own (Playwright's). Not
 // part of npm test: it needs that Chromium.   node dist/test/browser-phone-ask.js
 import fs from 'node:fs';
-import { connectConsumer, processors } from './consumer.js';
+import { connectSyntheticProcessor, processors } from './synthetic-processor.js';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium, type Page } from 'playwright-core';
@@ -21,7 +21,7 @@ await (async () => {
   let code = 1;
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'phone-ask-')), work = fs.mkdtempSync(path.join(os.tmpdir(), 'phone-ask-work-'));
   fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ tasksFolder: work, person: { name: 'Sam' } }));
-  const a = await startApp({ userData, processors, connect: connectConsumer });
+  const a = await startApp({ userData, processors, connect: connectSyntheticProcessor });
   const d = await openDesktop(a), js = d.js; // Desktop's page, as the person's browser opens it
   const browser = await chromium.launch({ headless: true }); let phone: Page | undefined;
   try {

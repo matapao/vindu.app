@@ -51,6 +51,7 @@ const transport = {
   selection: invoke('task:selection'), exportTask: invoke('task:export'),
   captureFile: invoke('capture:file'), captureSkip: invoke('capture:skip'), onCaptures: on('captures'), phone: invoke('phone:toggle'),
   settingsState: invoke('settings:state'), settingsProcessors: invoke('settings:processors'), settingsGrant: invoke('settings:grant'),
+  settingsProcessorChecks: invoke('settings:processor-checks'),
   settingsBudget: invoke('settings:budget'), settingsSetBudget: invoke('settings:set-budget'),
   settingsPhone: invoke('settings:phone'), settingsPhoneServe: invoke('settings:phone-serve'), settingsPhoneCode: invoke('settings:phone-code'),
   settingsPhoneRemove: invoke('settings:phone-remove'), settingsDevice: invoke('settings:device'), settingsPush: invoke('settings:push'),

@@ -146,13 +146,13 @@ test('restart retains task identity and its record, rechecks grants and retires 
     const openFile = path.join(directory, 'tasks', 'original', 'open-task.json');
     assert.equal(fs.statSync(openFile).mode & 0o777, 0o600);
     assert.ok(!fs.readFileSync(openFile, 'utf8').includes(endpoint));
-    app.celler.grant('desktop', 'reports', false);
+    app.celler.grant('reports', false);
     await app.close(); app = await start();
     assert.equal(app.tasks.size, 0);
     assert.equal(attachments, 1);
     assert.ok(fs.existsSync(openFile));
     await assert.rejects(call(app.desktop.url, 'task:create', { id: 'original' }), /already a task/);
-    app.celler.grant('desktop', 'reports', true);
+    app.celler.grant('reports', true);
     await app.close(); app = await start();
     await call(app.desktop.url, 'task:close', 'original');
     assert.ok(!fs.existsSync(openFile));

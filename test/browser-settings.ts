@@ -1,12 +1,12 @@
 // Desktop's Settings, in a Chromium of the test's own (Playwright's), with a Tailscale of the test's own (its command line,
-// which changes nothing): Processors (what Vindu may use, and its day's budget) and Phone, from the Settings button in
+// which changes nothing): Processors (what Vindu may use, what each still needs, and its day's budget) and Phone, from the Settings button in
 // Activity's head. At a phone's width Settings takes Activity's whole column, and Done brings the tasks back. On the
 // computer, Phone says where Tailscale is, puts the core on the tailnet when the person says, and makes a code to pair a
 // device with; a device paired by an owner's code shows Processors, another device does not. No page of any other origin
 // can frame Desktop, and Desktop's page is the one the person installs.
 // Not part of npm test: it needs that Chromium.   node dist/test/browser-settings.js
 import fs from 'node:fs';
-import { processors } from './consumer.js';
+import { processors } from './synthetic-processor.js';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
@@ -30,7 +30,9 @@ if (a[0] === 'serve' && a[1] === 'status') { console.log('{}'); process.exit(0);
 process.exit(a[0] === 'serve' ? 0 : 1);
 `, { mode: 0o755 });
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'settings-data-'));
-  const a = await startApp({ userData, home: dir, port: 17720, processors, tailscale: cli });
+  const checkProcessors = async () => [{ id: 'claude', name: 'Claude Code', found: true, ready: true, detail: 'Claude Code 9.9.9' },
+    { id: 'codex', name: 'Codex', found: true, ready: false, detail: 'Codex 9.9.9 · not signed in for Vindu' }];
+  const a = await startApp({ userData, home: dir, port: 17720, processors, checkProcessors, tailscale: cli });
   const browser = await chromium.launch({ headless: true });
   try {
     // a phone's width: Settings in place of the tasks, and Done brings them back
@@ -82,15 +84,19 @@ process.exit(a[0] === 'serve' ? 0 : 1);
     const codex = '#setup-harnesses input[data-processor="codex"]';
     await until(() => pc.locator(codex).count(), 'Processors');
     check(await pc.locator('#setup-harnesses input[data-processor="claude"]').isChecked() && await pc.locator(codex).isChecked() && (await pc.locator('#setup-harnesses').innerText()).includes('Codex'), 'Vindu has the registered harnesses, by their names');
+    const needs = pc.locator('#setup-harnesses p.check[data-check="codex"]');
+    await until(() => needs.isVisible(), 'what Codex still needs');
+    check(await needs.innerText() === 'Codex 9.9.9 · not signed in for Vindu' && await needs.evaluate(e => e.classList.contains('needs')) && await pc.locator('#setup-harnesses p.check[data-check="claude"]').innerText() === 'Claude Code 9.9.9',
+      'under each harness, what its check says: its version, and what it still needs before it takes a turn');
     await pc.uncheck(codex);
-    await until(() => !a.celler.grants('desktop').includes('codex'), 'Codex taken away through Celler');
+    await until(() => !a.celler.grants().includes('codex'), 'Codex taken away through Celler');
     await pc.check(codex);
-    await until(() => a.celler.grants('desktop').includes('codex'), 'Codex given back');
+    await until(() => a.celler.grants().includes('codex'), 'Codex given back');
     check(true, 'the person takes a harness from Vindu and gives it back, in Settings');
     const tokens = '#setup-limits input[data-limit="tokens"]';
     check((await pc.locator('#setup-spent').innerText()).startsWith('Today: 0 tokens') && await pc.locator(tokens).inputValue() === '', 'Vindu\'s day: nothing held back until the person sets it');
     await pc.fill(tokens, '20000'); await pc.press(tokens, 'Enter');
-    await until(() => a.celler.budget('desktop').tokens === 20000, 'the budget kept');
+    await until(() => a.celler.budget().tokens === 20000, 'the budget kept');
     check(await pc.locator(tokens).inputValue() === '20000', 'the person sets Vindu\'s day in Settings');
     check(!problems.length, `no errors in Desktop's page${problems.length ? `: ${problems.join(' | ')}` : ''}`);
     code = 0;

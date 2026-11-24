@@ -16,7 +16,7 @@
     "bundle": "esbuild dist/src/renderer.js --bundle --format=iife --log-level=warning --outfile=dist/src/renderer.bundle.js && esbuild dist/src/phone.js --bundle --format=iife --log-level=warning --outfile=dist/src/phone.bundle.js && esbuild dist/src/keys.js --bundle --format=iife --log-level=warning --outfile=dist/src/keys.bundle.js",
     "typecheck": "tsc -p . --noEmit",
     "test": "node scripts/check-names.mjs && pnpm run compile && vitest run",
-    "test:browser": "node dist/test/browser-smoke.js && node dist/test/browser-phone-ask.js && node dist/test/browser-inference.js && node dist/test/browser-settings.js && node dist/test/browser-sdk.js",
+    "test:browser": "node dist/test/browser-smoke.js && node dist/test/browser-phone-ask.js && node dist/test/browser-inference.js && node dist/test/browser-settings.js",
     "start": "node dist/src/main.js",
     "build:local": "node scripts/bootstrap.mjs --local"
   },

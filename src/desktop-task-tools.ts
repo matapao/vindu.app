@@ -1,6 +1,5 @@
 import { connectorTools, type ConnectorSpec } from './connectors.js';
 import { withKeys } from './keyrefs.js';
-import { APP } from './desktop-settings.js';
 import type { DesktopHost } from './desktop-host.js';
 import type { TaskSetup, TaskRouter } from './task.js';
 
@@ -31,7 +30,7 @@ export async function bindTaskTools(host: DesktopHost, scope: ToolScope) {
     if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Expected named tool arguments');
     let entry: string | undefined;
     const result = await celler.callTool({
-      owner: APP.id, processor: harness, cwd, node, adapters: tools.adapters, mayUse,
+      processor: harness, cwd, node, adapters: tools.adapters, mayUse,
       signal: signal ? AbortSignal.any([signal, scope.signal]) : scope.signal,
       input: args as Record<string, unknown>, ask: readOnly ? undefined : (question, signal) => router.ask?.(question, signal) ?? Promise.resolve(null),
       observed: output => { entry = router.observe?.(output); },

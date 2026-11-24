@@ -4,7 +4,8 @@
 // with it: the tasks, the VM, the pages. VINDU_PORT: Desktop's port (7300); VINDU_USER_DATA:
 // its folder, where the system keeps the app's data otherwise (a test's own, or a second core's); VINDU_TAILSCALE:
 // Tailscale's command line, in place of the one its installers put (a Pi's core, which runs as a user of its own, through sudo). Started by the desktop
-// app, it is given the app's link too (frame-link.ts): its browser views' pages live in the app, over their panes.
+// app, it is given the app's link too (frame-link.ts): its browser views' pages live in the app, over their panes. Its
+// processors are the claude and codex CLIs found on this computer as it starts (processors.ts).
 // `--service install` makes it a service of the person's login instead, started with no terminal (service.ts), and
 // `--service remove` takes that back. Where no one opens Desktop on this computer (a Pi, a server), the person asks the
 // core that runs here, at Desktop's own token: `--pair`, a code to pair a device with, as Phone in Settings makes one
@@ -15,6 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { startApp } from './app.js';
 import { frameLink } from './frame-link.js';
+import { localProcessors } from './processors.js';
 import { appDataDir, openAddress } from './os.js';
 import { keptToken } from './web.js';
 import { installService, removeService } from './service.js';
@@ -65,7 +67,8 @@ if (await fetch(desktop.replace('localhost', '127.0.0.1')).then(r => r.ok, () =>
   const frame = await frameLink(); // out of the environment before anything is started
   const tailscale = process.env.VINDU_TAILSCALE; // Tailscale's command line, where the core may not run the system's own (a Pi's: through sudo)
   const lan = process.env.VINDU_LAN; // on the Wi-Fi from the start, until the person says otherwise (a Pi's core: on)
-  const a = await startApp({ port, userData, lanName: process.env.VINDU_LAN_NAME, ...(frame ? { frame } : {}), ...(tailscale ? { tailscale } : {}), ...(lan ? { lan: lan === 'on' } : {}) });
+  const processors = localProcessors({ codexHome: path.join(userData, 'codex') }); // the CLIs here, as the tasks' processors
+  const a = await startApp({ port, userData, lanName: process.env.VINDU_LAN_NAME, ...processors, ...(frame ? { frame } : {}), ...(tailscale ? { tailscale } : {}), ...(lan ? { lan: lan === 'on' } : {}) });
   console.log(`vindu: ${a.url}`); if (open) openAddress(a.url);
   let stopping = false;
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(signal, () => {

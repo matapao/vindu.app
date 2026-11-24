@@ -11,20 +11,21 @@ export type ThreadItem =
   | { kind: 'user'; text: string; files: { name: string }[] }
   | { kind: 'text' | 'note' | 'told' | 'error'; text: string }
   | { kind: 'act'; event: Act };
-export type TaskCheckpoint = {
-  version: 1; owner: { id: string; folder?: string }; cwd: string; opening: Opening; readsOnly: boolean;
+/** An open task of Desktop's, as its folder keeps it to reopen it. */
+export type DesktopTaskCheckpoint = {
+  version: 1; cwd: string; opening: Opening; readsOnly: boolean;
   activity: Activity; named: boolean; view: ViewCheckpoint; thread: ThreadItem[];
 };
 
 export class TaskCheckpoints {
   constructor(private readonly root: string) {}
   private file(id: string) { return path.join(this.root, id, 'open-task.json'); }
-  save(id: string, data: TaskCheckpoint) { writePrivateJson(this.file(id), data); }
+  save(id: string, data: DesktopTaskCheckpoint) { writePrivateJson(this.file(id), data); }
   close(id: string) {
     const file = this.file(id);
     fs.renameSync(file, path.join(path.dirname(file), 'closed-task.json'));
   }
-  *open(): Generator<{ id: string; load: () => TaskCheckpoint }> {
+  *open(): Generator<{ id: string; load: () => DesktopTaskCheckpoint }> {
     if (!fs.existsSync(this.root)) return;
     for (const entry of fs.readdirSync(this.root, { withFileTypes: true })) {
       const id = entry.name;
@@ -32,9 +33,9 @@ export class TaskCheckpoints {
       const file = this.file(id);
       if (!fs.lstatSync(file, { throwIfNoEntry: false })?.isFile()) continue;
       yield { id, load() {
-        const data: TaskCheckpoint = JSON.parse(fs.readFileSync(file, 'utf8'));
+        const data: DesktopTaskCheckpoint = JSON.parse(fs.readFileSync(file, 'utf8'));
         if (data.version !== 1 || data.activity?.id !== id || data.activity.harness !== data.opening?.harness ||
-            typeof data.owner?.id !== 'string' || typeof data.readsOnly !== 'boolean' || !Array.isArray(data.thread) ||
+            typeof data.readsOnly !== 'boolean' || !Array.isArray(data.thread) ||
             !Array.isArray(data.view?.views) || !Array.isArray(data.activity.problems)) throw new Error('Invalid task checkpoint.');
         if (!path.isAbsolute(data.cwd) || fs.realpathSync(data.cwd) !== data.cwd || !fs.statSync(data.cwd).isDirectory()) throw new Error('The original workspace is unavailable.');
         return data;

@@ -2,6 +2,7 @@ import type { ShellCommand, ShellState } from '@matapao/vindu/renderer';
 import type { PageInput, PageState } from '@matapao/vindu/renderer/browser';
 import type { Shown } from '@matapao/vindu/server';
 import type { Entry } from '../activity.js';
+import type { ProcessorCheck } from '../desktop-settings.js';
 import type { ThreadItem } from '../task-checkpoint.js';
 import type { Switch } from '../task.js';
 import type { Act } from '../work.js';
@@ -92,6 +93,7 @@ export interface DesktopApi {
   settingsState(): Promise<{ host: string; device: string | null; away: boolean; setsUp: boolean }>;
   settingsProcessors(): Promise<{ processors: { id: string; name: string }[]; granted: string[]; connectors: { name: string; title: string }[] }>;
   settingsGrant(processor: string, on: boolean): Promise<string[]>;
+  settingsProcessorChecks(): Promise<ProcessorCheck[]>;
   settingsBudget(): Promise<Budget>;
   settingsSetBudget(limits: Budget['limits']): Promise<Budget>;
   settingsPhone(): Promise<PhoneState>;

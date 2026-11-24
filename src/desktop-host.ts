@@ -11,7 +11,7 @@ import { startNetwork, type Network } from './network.js';
 import { frameLinks, linkOver } from './frame-link.js';
 import { pageDoors } from './page-doors.js';
 import { startPageServer, type PageServer, type Sender } from './web.js';
-import { keptToken, upgradePageCredentials } from './page-credentials.js';
+import { keptToken } from './page-credentials.js';
 import { desktopConnectors } from './desktop-connectors.js';
 import { desktopFiles } from './desktop-files.js';
 import { APP, STATIC, BUILT, ICON, type AppOptions, type Settings } from './desktop-settings.js';
@@ -27,9 +27,8 @@ export type DesktopHost = Awaited<ReturnType<typeof openDesktopHost>>;
 
 export async function openDesktopHost(o: AppOptions) {
   const processors = o.processors ?? [];
-  const userData = o.userData ?? appDataDir('desktop'); // where Electron kept it before: the same settings, templates and tasks
-  const tokens = path.join(userData, 'pages.json'), logFile = path.join(userData, 'shell.jsonl');
-  await upgradePageCredentials(tokens, logFile);
+  const userData = o.userData ?? appDataDir('desktop');
+  const tokens = path.join(userData, 'pages.json'), logFile = path.join(userData, 'desktop.jsonl');
   const readSettings = (): Settings => { try { return JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')); } catch { return {}; } };
   const settings = readSettings();
   const home = o.home ?? os.homedir();
@@ -49,14 +48,15 @@ export async function openDesktopHost(o: AppOptions) {
       : `the browser to check pages in would not start here: ${said.split('\n')[0]}`);
   }));
   const driver = { open: async (url: string, viewport: { width: number; height: number }) => playwrightDriver(await checkBrowser()).open(url, viewport) };
-  const uiProvider = await startVindu({ driver, verifyMs: 1500, apps: settings.apps ?? 'off', appsNetwork: settings.appsNetwork, locale: locale(), asks: 'host',
+  // mcpTokenIn: a task's UI server carries its token in a header, never in its address, which a harness may give on a
+  // command line anyone on the computer can read
+  const uiProvider = await startVindu({ driver, verifyMs: 1500, apps: settings.apps ?? 'off', appsNetwork: settings.appsNetwork, locale: locale(), asks: 'host', mcpTokenIn: 'header',
     pageParentOrigins: (): string[] => desktopOrigins(),
     reminders: true, ...(settings.holidays ? { holidays: settings.holidays } : {}), jobs: { perDay: settings.jobs?.perDay ?? 3 } });
   const celler = openCellerHost(path.join(userData, 'celler'));
-  // A new data folder grants Desktop every processor it starts with; a folder with an older policy keeps that policy.
-  const hasLegacyPolicy = fs.existsSync(path.join(userData, 'senter'));
-  celler.register(APP.id, hasLegacyPolicy ? [] : processors.map(harness => harness.id));
-  const granted = () => processors.filter(h => celler.grants(APP.id).includes(h.id));
+  // A new data folder grants Desktop every processor it starts with; a folder with a policy keeps it.
+  celler.register(processors.map(harness => harness.id));
+  const granted = () => processors.filter(h => celler.grants().includes(h.id));
   const harnessName = (h: string) => processors.find(x => x.id === h)?.name ?? h;
   // the core's network side (network.ts): its pages on the person's tailnet once they turn it on, and the devices paired
   let network: Network | undefined;
@@ -66,7 +66,7 @@ export async function openDesktopHost(o: AppOptions) {
     ...(network?.lan() ?? []).map(n => `https://${n}:${desktop.port}`)];
   // the desktop apps' links: the one that started this core, and those of the person's other computers paired with it
   const links = frameLinks(); if (o.frame) links.add(o.frame);
-  // what the core did, for the person: kept in shell.jsonl, the name it has had since the core had a shell of its own
+  // what the core did, for the person: kept in desktop.jsonl, in its folder
   const coreLog = (e: Record<string, unknown>) => fs.appendFile(logFile, `${JSON.stringify({ at: new Date().toISOString(), ...e })}\n`, { mode: 0o600 }, () => undefined);
   // Vindu's pages on the person's other devices: a door to each task's origin, on the Wi-Fi and the tailnet as the core's
   // pages are, through which a page there is told Vindu's addresses (page-doors.ts); here they are reached as they are
@@ -100,37 +100,39 @@ export async function openDesktopHost(o: AppOptions) {
   };
   /** A turn of Desktop's runs only on a processor ticked for it in Settings, and within its day's budget. */
   const ensureProcessor = (harness: string) => {
-    if (!celler.grants(APP.id).includes(harness)) {
+    if (!celler.grants().includes(harness)) {
       throw new Error(`${harnessName(harness)} is not one of ${APP.name}'s processors: check Processors in Settings`);
     }
-    const reason = celler.over(APP.id);
+    const reason = celler.over();
     if (reason) throw new Error(reason);
   };
   const budgetOf = () => {
-    const over = celler.over(APP.id);
-    return { limits: celler.budget(APP.id), spent: celler.spent(APP.id), ...(over ? { over } : {}) };
+    const over = celler.over();
+    return { limits: celler.budget(), spent: celler.spent(), ...(over ? { over } : {}) };
   };
   // Settings: Processors (the harnesses Desktop may use, the connectors each task chooses from, its day's budget) are set
   // on this computer, or on one of the person's owner devices; any other device is refused, whatever its page shows
   const may = (via: Sender['via']) => (via?.device ? !!network?.devices.owner(via.device) : !via?.away);
   const setsUp = (e: { sender: Pick<Sender, 'via'> }) => { if (!may(e.sender.via)) throw new Error('what Vindu may use is set on the computer vindu runs on, or on a device paired as its owner'); };
   desktop.handle('settings:state', e => ({ host: os.hostname().replace(/\.local$/i, ''), device: e.sender.via?.device ?? null, away: !!e.sender.via?.away, setsUp: may(e.sender.via) }));
-  desktop.handle('settings:processors', e => (setsUp(e), { processors, granted: celler.grants(APP.id),
+  desktop.handle('settings:processors', e => (setsUp(e), { processors, granted: celler.grants(),
     connectors: availableConnectors().connectors.map(c => ({ name: c.name, title: c.title })) }));
+  // what each processor still needs, and those not on this computer, as the app's own check says (it calls no model)
+  desktop.handle('settings:processor-checks', async e => (setsUp(e), await o.checkProcessors?.() ?? []));
   desktop.handle('settings:grant', (e, processor: unknown, on: unknown) => {
     setsUp(e);
     if (!processors.some(h => h.id === processor)) throw new Error(`No access to "${String(processor)}" for ${APP.name}`);
-    celler.grant(APP.id, String(processor), on === true);
+    celler.grant(String(processor), on === true);
     send('processors', granted());
-    return celler.grants(APP.id);
+    return celler.grants();
   });
   // its day: nothing is held back until the person sets a limit
   desktop.handle('settings:budget', e => (setsUp(e), budgetOf()));
   desktop.handle('settings:set-budget', (e, limits: unknown) => {
     setsUp(e);
     const l = (limits && typeof limits === 'object' ? limits : {}) as Record<string, unknown>;
-    celler.setBudget(APP.id, { tokens: Number(l.tokens), cost: Number(l.cost), minutes: Number(l.minutes) });
-    coreLog({ budget: APP.id, limits: celler.budget(APP.id) });
+    celler.setBudget({ tokens: Number(l.tokens), cost: Number(l.cost), minutes: Number(l.minutes) });
+    coreLog({ budget: celler.budget() });
     return budgetOf();
   });
   // Phone: the core on the person's tailnet, devices paired by a code, and their notifications (network.ts). What sets it

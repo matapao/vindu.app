@@ -6,7 +6,7 @@ import type { Sender } from './web.js';
 import type { Opening } from './task-checkpoint.js';
 import { workFolder } from './work.js';
 import { openPath, pickFiles, pickFolder, pickSave } from './os.js';
-import { APP, type AppOptions } from './desktop-settings.js';
+import type { AppOptions } from './desktop-settings.js';
 import { openDesktopHost, requireLocalDesktop } from './desktop-host.js';
 import { taskActivity } from './desktop-task-activity.js';
 import { taskCaptures } from './desktop-task-captures.js';
@@ -125,8 +125,6 @@ export async function startApp(o: AppOptions = {}) {
   for (const { id, load } of checkpoints.open()) {
     try {
       const saved = load();
-      // a task another app started, from when Vindu.app hosted other apps: there is no app to reopen it in
-      if (saved.owner.id !== APP.id || saved.owner.folder !== undefined) throw new Error('The task’s original app is unavailable.');
       await start(saved.opening, saved.cwd, { id, saved });
     } catch (error) {
       unavailable.push(`Could not reopen task ${id}: ${(error as Error).message}`);

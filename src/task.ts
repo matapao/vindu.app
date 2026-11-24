@@ -42,7 +42,8 @@ export type TaskMessage = {
 };
 
 export type TaskReply = { text: string; usage?: { totalTokens: number }; costUsd?: number | null };
-export type TaskConsumer = {
+/** The processor's side of a task: a turn sent to it, a switch of its own set, and its end. */
+export type TaskProcessor = {
   send: (message: TaskMessage) => Promise<TaskReply>;
   set?: (id: string, value: string | boolean) => void | Promise<void>;
   close?: () => void | Promise<void>;
@@ -68,7 +69,7 @@ export type TaskSetup = {
   owner?: string;
   readsOnly?: boolean;
   harness: string;
-  connect?: (task: TaskConnection) => TaskConsumer | undefined;
+  connect?: (task: TaskConnection) => TaskProcessor | undefined;
   callTool?: TaskConnection['callTool'];
   cwd: string;
   dataDir: string;
@@ -160,8 +161,8 @@ export function placeFor(options: { cwd: string; seed?: string; home?: string })
   return { cwd: fs.realpathSync(cwd), notes };
 }
 
-function httpServer(name: string, url: string): TaskConnection['mcpServers'][number] {
-  return { name, transport: 'http', url, headers: {} };
+function httpServer(name: string, url: string, headers: Record<string, string>): TaskConnection['mcpServers'][number] {
+  return { name, transport: 'http', url, headers };
 }
 
 export async function openTask(setup: TaskSetup) {
@@ -217,7 +218,7 @@ export async function openTask(setup: TaskSetup) {
       options: [{ name: 'Allow for this task' }, { name: 'Deny' }] }, new AbortController().signal) === 0,
     keep: (tool, value) => record.addResult({ server: DEVICE, tool, input: {}, value, raw: value, fidelity: 'exact', via: 'device' }).id,
   }) : Promise.resolve(undefined)).catch(error => { ui.close(); throw error; });
-  const mcpServers = [ui.mcpServer, ...(device ? [httpServer(DEVICE, device.url)] : [])];
+  const mcpServers = [ui.mcpServer, ...(device ? [httpServer(DEVICE, device.url, device.headers)] : [])];
   const ask = async (question: TaskQuestion, requested: AbortSignal): Promise<TaskAnswer | null> => {
     const signal = AbortSignal.any([requested, lifetime.signal]);
     if (signal.aborted) return null;
@@ -246,9 +247,9 @@ export async function openTask(setup: TaskSetup) {
   let first = true;
   let active: AbortController | undefined;
   let receivedText = false;
-  let consumer: TaskConsumer | undefined;
+  let processor: TaskProcessor | undefined;
   const attach = () => {
-    consumer = t.connect?.({
+    processor = t.connect?.({
       id: t.id ?? randomUUID(), processor: t.harness, owner: t.owner, readsOnly: t.readsOnly === true, cwd, mcpServers,
       text(delta) { if (!closed && !active?.signal.aborted) { receivedText = true; t.onText(delta); } },
       activity(event) { if (!closed) { record.frame('progress', event); t.onActivity?.(event); } },
@@ -260,7 +261,7 @@ export async function openTask(setup: TaskSetup) {
         return t.callTool!(server, tool, args, signal);
       } } : {}),
     });
-    if (t.connect && !consumer) throw new Error('No processor is connected to this task.');
+    if (t.connect && !processor) throw new Error('No processor is connected to this task.');
   };
   try {
     if (t.restore) {
@@ -292,8 +293,8 @@ export async function openTask(setup: TaskSetup) {
 
   async function prompt(text: string, attachments: Attachment[] = []) {
     if (closed) throw new Error('The task is closed.');
-    if (!consumer && t.restore) attach();
-    if (!consumer) throw new Error('No processor is connected to this task.');
+    if (!processor && t.restore) attach();
+    if (!processor) throw new Error('No processor is connected to this task.');
     if (active) throw new Error('This task already has a running turn.');
     const controller = new AbortController();
     active = controller;
@@ -310,7 +311,7 @@ export async function openTask(setup: TaskSetup) {
       });
       const context = [ui.delta(1200), ui.context(1200).text, first ? ui.note : ''].filter(Boolean).join('\n\n');
       if (context) t.onTold?.(context);
-      const reply = await consumer.send({ text, context, attachments: given, signal: controller.signal });
+      const reply = await processor.send({ text, context, attachments: given, signal: controller.signal });
       if (!receivedText && !controller.signal.aborted && reply.text) t.onText(reply.text);
       first = false;
       const result = { stopReason: controller.signal.aborted ? 'cancelled' as const : 'end_turn' as const,
@@ -328,17 +329,17 @@ export async function openTask(setup: TaskSetup) {
 
   return {
     record, observe, refusals: ui.refusals, pages: ui.pages, cwd, work: cwd,
-    ui: { url: ui.url, layoutMcpServer: ui.layoutMcpServer, provideFiles: ui.provideFiles },
-    device: device ? { url: device.url } : undefined,
+    ui: { url: ui.url, provideFiles: ui.provideFiles },
+    device: device ? { url: device.url, headers: device.headers } : undefined,
     views: ui.views,
-    notes, get attached() { return !!consumer || !!(t.restore && t.connect); },
+    notes, get attached() { return !!processor || !!(t.restore && t.connect); },
     switches: () => switches,
     async set(id: string, value: string | boolean) {
       const previous = switches;
       const setting = switches.find(item => item.id === id);
       const valid = setting?.type === 'boolean' ? typeof value === 'boolean' : setting?.options?.some(option => option.value === value);
-      if (!valid || !consumer?.set || closed) throw new Error('Choose an option the processor offers.');
-      await consumer.set(id, value);
+      if (!valid || !processor?.set || closed) throw new Error('Choose an option the processor offers.');
+      await processor.set(id, value);
       if (switches === previous) switches = switches.map(item => item.id === id ? { ...item, value } : item);
       return switches;
     },
@@ -370,7 +371,7 @@ export async function openTask(setup: TaskSetup) {
       lifetime.abort();
       active?.abort();
       try { ui.close(); } finally {
-        try { await consumer?.close?.(); } finally { await device?.close(); }
+        try { await processor?.close?.(); } finally { await device?.close(); }
       }
     },
   };

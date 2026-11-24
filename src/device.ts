@@ -18,7 +18,9 @@ export type DeviceOptions = {
   keep: (tool: string, value: unknown) => string; // into the record, as exact: its id
   log: (e: Record<string, unknown>) => void;
 };
-export type Device = { url: string; close: () => Promise<void> };
+/** Where the harness reaches it: its address, and its token in a header, never in the address, which a harness may
+ *  give on a command line anyone on the computer can read. */
+export type Device = { url: string; headers: Record<string, string>; close: () => Promise<void> };
 
 export async function startDevice(o: DeviceOptions): Promise<Device> {
   const token = crypto.randomBytes(16).toString('hex');
@@ -39,8 +41,10 @@ export async function startDevice(o: DeviceOptions): Promise<Device> {
     return s;
   };
   const node = toNodeHandler(createMcpHandler(() => serverFor()));
-  const server = http.createServer((req, res) => { if (req.url?.split('?')[0] !== `/mcp/${token}`) { res.writeHead(404).end(); return; } void node(req, res); });
+  const bearer = Buffer.from(`Bearer ${token}`);
+  const admitted = (req: http.IncomingMessage) => { const given = Buffer.from(req.headers.authorization ?? ''); return given.length === bearer.length && crypto.timingSafeEqual(given, bearer); };
+  const server = http.createServer((req, res) => { if (req.url?.split('?')[0] !== '/mcp' || !admitted(req)) { res.writeHead(404).end(); return; } void node(req, res); });
   await new Promise<void>(r => server.listen(0, '127.0.0.1', r)); // loopback only
   const port = (server.address() as { port: number }).port;
-  return { url: `http://127.0.0.1:${port}/mcp/${token}`, close: () => new Promise<void>(r => { server.close(() => r()); server.closeAllConnections?.(); }) };
+  return { url: `http://127.0.0.1:${port}/mcp`, headers: { Authorization: `Bearer ${token}` }, close: () => new Promise<void>(r => { server.close(() => r()); server.closeAllConnections?.(); }) };
 }

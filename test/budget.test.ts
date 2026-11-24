@@ -2,10 +2,10 @@
 // start, its usage counted, and the next turn refused once it reaches the daily limit the person sets.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { processors } from './consumer.js';
+import { processors } from './synthetic-processor.js';
 import os from 'node:os';
 import path from 'node:path';
-import type { TaskConnection, TaskConsumer } from '../src/task.js';
+import type { TaskConnection, TaskProcessor } from '../src/task.js';
 import { afterAll, beforeAll, test } from 'vitest';
 import { startApp, type App } from '../src/app.js';
 
@@ -29,7 +29,7 @@ function pageCall(url: string, ch: string, ...args: unknown[]): Promise<unknown>
 }
 const desktopCall = (ch: string, ...args: unknown[]) => pageCall(app.desktop.url, ch, ...args);
 
-function connect(task: TaskConnection): TaskConsumer {
+function connect(task: TaskConnection): TaskProcessor {
   return {
     async send(message) {
       specs.push({ prompt: message.text });
@@ -52,7 +52,7 @@ afterAll(async () => {
 });
 
 test('Desktop has the registered processors, and connectors are chosen for each task', async () => {
-  assert.deepEqual(app.celler.grants('desktop'), ['claude', 'codex']);
+  assert.deepEqual(app.celler.grants(), ['claude', 'codex']);
   const listed = await desktopCall('settings:processors') as { processors: { id: string }[]; granted: string[] };
   assert.deepEqual([listed.processors.map(p => p.id), listed.granted], [['claude', 'codex'], ['claude', 'codex']]);
   assert.deepEqual(await desktopCall('settings:grant', 'codex', false), ['claude']);
@@ -65,8 +65,8 @@ test('Desktop has the registered processors, and connectors are chosen for each 
 test('Desktop usage is counted and the next turn is refused at the daily limit', async () => {
   await desktopCall('task:create', { id: 'own1', harness: 'claude', title: 'Usage fixture' });
   await desktopCall('task:prompt', 'own1', 'First turn');
-  assert.equal(app.celler.spent('desktop').tokens, 10);
-  assert.equal(app.celler.spent('desktop').cost, 0.25);
+  assert.equal(app.celler.spent().tokens, 10);
+  assert.equal(app.celler.spent().cost, 0.25);
   try {
     const set = await desktopCall('settings:set-budget', { tokens: 10 }) as { limits: { tokens: number }; over?: string };
     assert.equal(set.limits.tokens, 10); assert.equal(set.over, 'Daily tokens budget reached');

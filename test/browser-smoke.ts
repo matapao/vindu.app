@@ -7,7 +7,7 @@
 // It reads what lies where from the pages' own boxes and the pictured pages' sizes, never from pictures; SMOKE_SHOT=<file>
 // also saves the window, for a person to look at. "Another site" is this machine under another name. Synthetic data only.
 import fs from 'node:fs';
-import { connectConsumer, processors } from './consumer.js';
+import { connectSyntheticProcessor, processors } from './synthetic-processor.js';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -45,7 +45,7 @@ await (async () => {
   fs.writeFileSync(path.join(conn, 'api.txt'), 'GET /invoices?status=overdue lists the overdue invoices.\n');
   fs.writeFileSync(path.join(conn, 'SKILL.md'), '---\nname: accounts\ndescription: Invoices in Accounts. Use when following up unpaid invoices.\n---\n# Accounts\n');
   const exportTo = path.join(tmp('export-'), 'task.zip');
-  const a = await startApp({ userData, port: 17300, browserArgs: HOSTS, secrets: memory(), pickFolder: async () => work, pickSave: async () => exportTo, processors, connect: connectConsumer });
+  const a = await startApp({ userData, port: 17300, browserArgs: HOSTS, secrets: memory(), pickFolder: async () => work, pickSave: async () => exportTo, processors, connect: connectSyntheticProcessor });
   const browser = await chromium.launch({ headless: true }), context = await browser.newContext({ viewport: { width: 1440, height: 856 } });
   const errors: string[] = [];
   const watch = (p: Page) => { p.on('console', m => { if (m.type() === 'error') errors.push(`${new URL(p.url()).port}: ${m.text()}`); }); p.on('pageerror', e => errors.push(`${new URL(p.url()).port}: ${e.message}`)); };
@@ -82,7 +82,7 @@ await (async () => {
     const unpicked = await js<string>(`desktop.create({ id: 'no-pick', harness: 'claude', folder: ${JSON.stringify(work)} }).then(() => 'started', e => String(e.message))`);
     check(/Choose the working folder/.test(unpicked) && !a.tasks.size, 'a task can use only a folder chosen in its window');
     const refused = await js<string>(`desktop.create({ id: 'not-granted', harness: 'codex', title: 'x', servers: [] }).then(() => 'started', e => String(e.message))`);
-    check(a.celler.grants('desktop').includes('claude') && !a.celler.grants('desktop').includes('codex') && /Codex is not one of Vindu's processors/.test(refused) && !a.tasks.size,
+    check(a.celler.grants().includes('claude') && !a.celler.grants().includes('codex') && /Codex is not one of Vindu's processors/.test(refused) && !a.tasks.size,
       'untick Codex for Desktop: its picker has Claude Code alone, and a task with Codex is refused all the same');
     await page.click(codex);
     await until(async () => await harnesses() === 'claude,codex', 'Codex back in Desktop\'s picker');

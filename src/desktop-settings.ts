@@ -16,7 +16,11 @@ export type Settings = { servers?: ServerSpec[]; apps?: AppsSwitch; appsNetwork?
   jobs?: { on?: boolean; perDay?: number };   // jobs from views' hooks: off unless on; each at most perDay runs a day (3)
   tasksFolder?: string;                       // where a task gets a folder of its own when the person picks none (~/Vindu)
 };
-type Processor = { id: string; name: string };
+/** A harness a task may run on: its id, and the name the person knows it by. */
+export type Processor = { id: string; name: string };
+/** What the app's own check says of a harness: whether it is one of the processors found on this computer, whether it
+ *  is ready to take a turn, and, if not, what it still needs (its program, its sign-in), in words for Settings. */
+export type ProcessorCheck = { id: string; name: string; found: boolean; ready: boolean; detail: string };
 /** Desktop: the app itself, and the owner of its tasks in Celler. */
 export const APP = { id: 'desktop', name: 'Vindu' };
 export type AppOptions = {
@@ -24,6 +28,7 @@ export type AppOptions = {
   pickSave?: (name: string) => Promise<string | null>;         // where an export goes: the person picks it, by default
   processors?: Processor[];                                    // the harnesses its tasks may run on, as Processors in Settings lists them: none, by default
   connect?: TaskSetup['connect'];                              // each task's connection to its processor: without one, a task shows views and takes no prompt
+  checkProcessors?: () => Promise<ProcessorCheck[]>;           // what each processor still needs, and those not found, for Settings: none, by default
   userData?: string;                                           // settings and tasks: the system's place for the app's data, by default
   home?: string;                                               // the person's home, for ~ in paths
   port?: number;                                               // Desktop's port (7300); the keys page's is the next one

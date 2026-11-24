@@ -1,6 +1,5 @@
 import path from 'node:path';
 import type { Reminder } from '@matapao/vindu/server';
-import { APP } from './desktop-settings.js';
 import type { DesktopHost } from './desktop-host.js';
 import type { OpenTask, TaskRouter } from './task.js';
 import { TaskCheckpoints, type Opening, type ThreadItem } from './task-checkpoint.js';
@@ -49,7 +48,7 @@ export function taskActivity(host: DesktopHost) {
     const activity = acts.get(id), task = tasks.get(id), opening = opened.get(id);
     if (!activity || !task || !opening) return;
     const { cwd, q, readsOnly } = opening;
-    checkpoints.save(id, { version: 1, cwd, owner: { id: APP.id }, opening: q, readsOnly,
+    checkpoints.save(id, { version: 1, cwd, opening: q, readsOnly,
       activity, named: named.has(id), view: task.checkpoint(), thread: threads.get(id) ?? [] });
   };
   const scheduleSave = (id: string) => {

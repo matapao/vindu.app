@@ -12,9 +12,9 @@ import { pathToFileURL } from 'node:url';
 const DESKTOP = path.join(import.meta.dirname, '..', '..', '..');
 const load = (rel: string) => import(pathToFileURL(path.join(DESKTOP, 'dist', 'src', rel)).href);
 const { startApp } = await load('app.js') as { startApp: (o: Record<string, unknown>) => Promise<Core> };
-const { connectConsumer, processors } = await import(pathToFileURL(path.join(DESKTOP, 'dist', 'test', 'consumer.js')).href);
+const { connectSyntheticProcessor, processors } = await import(pathToFileURL(path.join(DESKTOP, 'dist', 'test', 'synthetic-processor.js')).href);
 const { frameLink } = await load('frame-link.js') as { frameLink: () => Promise<unknown> };
-type Core = { url: string; tasks: Map<string, { ui: { layoutMcpServer: Endpoint }; useTemplate(template: unknown): Promise<unknown> }>; pages(task: string): unknown[]; pageEval(task: string, name: string, js: string): Promise<unknown>; pairingCode(): string; close(): Promise<void> };
+type Core = { url: string; tasks: Map<string, { useTemplate(template: unknown): Promise<unknown> }>; pages(task: string): unknown[]; pageEval(task: string, name: string, js: string): Promise<unknown>; pairingCode(): string; close(): Promise<void> };
 
 const userData = process.env.VINDU_USER_DATA ?? fs.mkdtempSync(path.join(os.tmpdir(), 'frame-core-'));
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'frame-work-'));
@@ -29,7 +29,7 @@ const a = await startApp({ userData, port: Number(process.env.VINDU_PORT) || 178
     const ui = task.mcpServers.find(server => server.name === 'ui');
     if (!ui) throw new Error('Missing task UI endpoint');
     endpoints.set(task.id, ui);
-    return connectConsumer(task);
+    return connectSyntheticProcessor(task);
   }, ...(frame ? { frame } : {}) });
 
 const answer = (r: http.ServerResponse, v: unknown) => r.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(v ?? null));
@@ -41,7 +41,6 @@ const inspect = http.createServer((q, r) => {
     else if (u.pathname === '/desktop') answer(r, a.url);
     else if (u.pathname === '/pages') answer(r, a.pages(task));
     else if (u.pathname === '/ui') answer(r, a.tasks.has(task) ? endpoints.get(task) : null);
-    else if (u.pathname === '/layout') answer(r, a.tasks.get(task)?.ui.layoutMcpServer);
     else if (u.pathname === '/provider-pane') answer(r, await a.tasks.get(task)?.useTemplate({
       name: 'Invoice', slots: { invoice: { title: 'Invoice', block: 'app', source: { server: 'billing', tool: 'lookup' } } },
     }));

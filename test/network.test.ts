@@ -8,7 +8,7 @@ import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { connectConsumer, processors } from './consumer.js';
+import { connectSyntheticProcessor, processors } from './synthetic-processor.js';
 import http from 'node:http';
 import https from 'node:https';
 import { makeLanIdentity, wifiName } from './lan-identity.js';
@@ -104,7 +104,7 @@ process.exit(1);
   pushed = [];
   a = await startApp({ userData: tmp('network-data-'), port: 17700, home: tmp('network-home-'), tailscale: cli,
     push: { allowed: () => true, fetch: (async (url: string, init: { headers: Record<string, string>; body: Uint8Array }) => { pushed.push({ endpoint: url, headers: init.headers, body: Buffer.from(init.body) }); return new Response(null, { status: 201 }); }) as unknown as typeof fetch },
-    processors, connect: connectConsumer });
+    processors, connect: connectSyntheticProcessor });
 });
 afterAll(async () => { await a?.close(); });
 
@@ -273,7 +273,7 @@ test('on the Wi-Fi, once on there: each page at its own port over HTTPS, a paire
   const WIFI = wifiName, A = '::1', userData = tmp('lan-data-');
   let tls: ReturnType<typeof makeLanIdentity> | undefined;
   const w = await startApp({ userData, port: 17800, home: tmp('lan-home-'), tailscale: null, lanAddresses: () => [A], lanName: WIFI,
-    processors, connect: connectConsumer });
+    processors, connect: connectSyntheticProcessor });
   const deskPort = w.desktop.port, token = w.desktop.token;
   let ask = wifiRequests(tls);
   /** The person's own command here, as main.ts gives it: Desktop's token, this computer's name, no page's origin. */
@@ -337,7 +337,7 @@ test("on the Wi-Fi, a task's page reaches a paired device through a door of its 
   const tls = makeLanIdentity(userData);
   const w = await startApp({ userData, port: 17820, home: tmp('doors-home-'), tailscale: null, lanAddresses: () => [A], lanName: WIFI,
     pageBrowser: () => Promise.reject(new Error("browserType.launch: Executable doesn't exist at /nowhere/headless_shell")),
-    processors, connect: connectConsumer });
+    processors, connect: connectSyntheticProcessor });
   const deskPort = w.desktop.port, token = w.desktop.token;
   const ask = wifiRequests(tls);
   const control = async (q: Record<string, unknown>) => JSON.parse((await ask('127.0.0.1', deskPort, `/${token}/control`, { host: `127.0.0.1:${deskPort}`, method: 'POST', body: JSON.stringify(q) })).body) as Record<string, any>;

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { bindTaskTools } from './desktop-task-tools.js';
 import { openAddress } from './os.js';
 import { openTask, type OpenTask, type TaskRouter, type TaskSetup } from './task.js';
-import type { Opening, TaskCheckpoint, ThreadItem } from './task-checkpoint.js';
+import type { DesktopTaskCheckpoint, Opening, ThreadItem } from './task-checkpoint.js';
 import { APP } from './desktop-settings.js';
 import type { DesktopHost } from './desktop-host.js';
 import type { TaskActivity } from './desktop-task-activity.js';
@@ -16,7 +16,7 @@ type StartOptions = {
   from?: { snapshot: ReturnType<OpenTask['snapshot']>; record: OpenTask['record']; task: string };
   job?: Job;
   id?: string;
-  saved?: TaskCheckpoint;
+  saved?: DesktopTaskCheckpoint;
 };
 type Job = { label: string; prompt: string; connectors?: string[]; writes: boolean };
 type Opened = { id: string; cwd: string; where: string; notes: string[]; switches: ReturnType<OpenTask['switches']>; mode: ReturnType<OpenTask['mode']> };
@@ -159,7 +159,7 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
     remember(id, item); send('user', id, item, origin);
     const words = text.replace(/\s+/g, ' ').trim();
     if (a) { if (!named.has(id) && words) { named.add(id); a.title = words.length > 48 ? `${words.slice(0, 47)}…` : words; } a.running = { since: Date.now(), what: words.length > 60 ? `${words.slice(0, 59)}…` : words }; changed(id); }
-    const finish = celler.meter(APP.id);
+    const finish = celler.meter();
     const monitor = setInterval(() => {
       try { ensureProcessor(initial.q.harness); } catch { void t.cancel(); }
     }, 100);
