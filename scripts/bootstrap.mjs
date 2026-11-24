@@ -7,7 +7,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const parent = path.dirname(root);
 
 const dependencies = [
-  { name: 'celler', packageName: 'celler' },
+  { name: 'celler', packageName: '@matapao/celler' },
   { name: 'vindu', packageName: '@matapao/vindu' },
 ].map(dep => ({ ...dep, dir: path.join(parent, dep.name) }));
 
