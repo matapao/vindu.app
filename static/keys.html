@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Connector Keys</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- the keys page: an origin of its own, nothing from elsewhere; the app gives its policy -->
+  <style>
+    html, body { margin: 0; font: 13px/1.4 system-ui, sans-serif; color-scheme: light dark; background: Canvas; color: CanvasText; }
+    main { padding: 16px; } h1 { font-size: 15px; margin: 0 0 4px; } .about { margin: 0 0 12px; color: GrayText; }
+    .key { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 8px; align-items: center; padding: 8px 0; border-top: 1px solid color-mix(in srgb, CanvasText 18%, transparent); }
+    .name { grid-column: 1 / 4; font-weight: 600; } .where { grid-column: 1 / 4; color: GrayText; }
+    input { grid-column: 1; min-width: 0; font: inherit; padding: 3px 6px; } button { font: inherit; }
+    .warn { padding: 6px 8px; border: 1px solid color-mix(in srgb, CanvasText 30%, transparent); border-radius: 4px; }
+    #status { min-height: 1.4em; margin: 12px 0 0; }
+    @media (max-width: 700px) { /* a narrow window: fields a phone would not zoom into, buttons large enough to tap */
+      html, body { font-size: 15px; } h1 { font-size: 18px; }
+      input { font-size: 16px; padding: 8px 10px; min-height: 40px; box-sizing: border-box; } button { min-height: 40px; padding: 6px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Connector Keys</h1>
+    <p class="about">A connector's key is added by the app to that connector's requests only. It never reaches the harness, the model, a task's record or its folders, and it is not shown again once set.</p>
+    <div id="keys"></div>
+    <p id="status" role="status"></p>
+  </main>
+  <script src="keys.bundle.js" defer></script>
+</body>
+</html>

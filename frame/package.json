@@ -1,0 +1,31 @@
+{
+  "name": "@matapao/vindu-frame",
+  "productName": "vindu",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "description": "vindu's desktop app: the shell's window on a computer, around the same pages a browser shows. It starts this computer's vindu, or opens one elsewhere.",
+  "type": "module",
+  "main": "dist/src/main.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "typecheck": "tsc -p . --noEmit",
+    "electron:fetch": "node node_modules/electron/install.js",
+    "start": "electron .",
+    "test": "node --test dist/test/link-routing.js && node dist/test/smoke.js && node dist/test/live.js && node dist/test/links.js && node dist/test/elsewhere.js",
+    "pack:app": "node scripts/pack.mjs",
+    "test:packed": "node dist/test/packed.js",
+    "test:client": "node dist/test/client.js"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@types/node": "^24.19.2",
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
+    "playwright-core": "1.65.0",
+    "typescript": "^7.0.2"
+  }
+}

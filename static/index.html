@@ -1,0 +1,321 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Vindu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151514" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Vindu">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest"> <!-- installed as a web app, Desktop opens in a window of its own -->
+  <link rel="icon" href="app-icon">
+  <link rel="apple-touch-icon" href="apple-touch-icon"> <!-- Safari's Home Screen and Dock take a picture, not a drawing -->
+  <!-- the app's own page: the task's views in the middle, as panes in Vindu's shell, and Activity on the right; pages, media and MCP Apps load from their own origins on Vindu's page host.
+       A browser view's page is a native view over its pane, not a frame of this page. -->
+  <link rel="stylesheet" href="renderer.bundle.css"> <!-- xterm.js's own, for the terminal panes -->
+  <style>
+    /* Vindu's tokens throughout (--v-ink, --v-muted, --v-hair, --v-accent, …), so Activity sits with the panes, light or dark */
+    html, body { margin: 0; height: 100%; }
+    body { display: flex; overflow: hidden; background: var(--v-pane); }
+    button, select, textarea, input { font: inherit; color: inherit; }
+    svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    [hidden] { display: none !important; }
+    @keyframes breathe { 50% { opacity: .3; } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+    /* the views */
+    #views { flex: 1; min-width: 0; position: relative; background: var(--v-desk); }
+    .task { position: absolute; inset: 0; }
+    .task { position: absolute; inset: 0; }
+    #empty { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; color: var(--v-muted); }
+
+    /* Activity */
+    #side { --bad: light-dark(#b4432f, #ec7a65); flex: none; width: 360px; min-height: 0; display: flex; flex-direction: column; background: var(--v-head); border-left: 1px solid var(--v-line); }
+    #head { flex: none; display: flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--v-hair); }
+    #head:has(#back:not([hidden])) { padding-left: 6px; }
+    #heading { flex: 1; min-width: 0; }
+    #title { margin: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #where { margin: 0; font-size: 11px; color: var(--v-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .icon { all: unset; flex: none; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; color: var(--v-muted); }
+    .icon:hover { background: var(--v-wash); color: var(--v-ink); }
+    :is(.icon, .tool, .card, .btn, .go, .pick select):focus-visible { outline: 2px solid var(--v-accent); outline-offset: -2px; }
+
+    #list { flex: 1; min-height: 0; overflow: auto; padding: 6px; scrollbar-width: thin; }
+    #tasks:empty::before { content: "Nothing yet. A prompt below starts a task."; display: block; padding: 16px 10px; font-size: 12px; color: var(--v-muted); }
+    #appnotes:not(:empty) { display: flex; flex-direction: column; gap: 4px; padding: 4px 8px 8px; }
+    #next { display: flex; align-items: baseline; gap: 6px; margin: 0 0 6px; padding: 6px 8px; border-radius: 7px; background: var(--v-wash); font-size: 12px; }
+    #next span { min-width: 0; overflow-wrap: anywhere; color: var(--v-ink-2); }
+    #tasks h3 { margin: 10px 8px 2px; font-size: 11px; font-weight: 600; color: var(--v-muted); }
+    #tasks h3:first-child { margin-top: 2px; }
+    .act { position: relative; border-radius: 7px; }
+    .act.front { box-shadow: inset 0 0 0 1px var(--v-hair); }
+    .act-tools { position: absolute; top: 5px; right: 6px; display: none; gap: 2px; }
+    .act:is(:hover, :focus-within) .act-tools, .act-tools:has([aria-pressed="true"]) { display: flex; }
+    .act:is(:hover, :focus-within) .card-when { visibility: hidden; }
+    .act-tools button { all: unset; padding: 0 5px; border-radius: 4px; font-size: 10.5px; line-height: 16px; color: var(--v-muted); background: var(--v-head); }
+    .act-tools button:hover { background: var(--v-wash); color: var(--v-ink); }
+    .act-tools button[aria-pressed="true"] { color: var(--v-ink); font-weight: 600; }
+    .act-tools button:focus-visible { outline: 2px solid var(--v-accent); }
+    .card { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 12px 1fr auto; column-gap: 6px; row-gap: 1px; padding: 7px 8px; border-radius: 7px; }
+    .card:hover { background: var(--v-wash); }
+    .card-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-when { padding-left: 6px; font-size: 11px; color: var(--v-muted); }
+    .card-line { grid-column: 2 / 4; font-size: 12px; color: var(--v-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dot { width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--v-muted); }
+    [data-status="starting"] .dot, [data-status="working"] .dot { background: var(--v-ink-2); box-shadow: none; animation: breathe 1.4s ease-in-out infinite; }
+    [data-status="needs"] .dot { background: var(--v-accent); box-shadow: none; }
+    [data-status="needs"] .card-line { color: var(--v-accent); }
+    [data-status="failed"] .dot { background: var(--bad); box-shadow: none; }
+    [data-status="failed"] .card-line { color: var(--bad); }
+    [data-status="new"] .dot { background: var(--v-ink); box-shadow: none; }
+    [data-status="new"] .card-title { font-weight: 600; }
+
+    /* a thread, and its bar: terminals and pages, the view (static or dynamic, kept as a template), a new task from it */
+    #viewbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; padding: 4px 10px 4px 14px; border-bottom: 1px solid var(--v-hair); font-size: 12px; color: var(--v-muted); }
+    #mode { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #pinning { display: inline-flex; gap: 4px; }
+    #pin-name { width: 140px; padding: 2px 6px; border: 1px solid var(--v-line); border-radius: 5px; background: var(--v-pane); }
+    #opens { display: inline-flex; }
+    #phone[aria-pressed="true"] { color: var(--v-accent); }
+    #thread { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; scrollbar-width: thin; }
+    .turns { display: flex; flex-direction: column; gap: 8px; }
+    .you { align-self: flex-end; max-width: 88%; padding: 6px 10px; border-radius: 10px; background: var(--v-wash); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; margin-top: -4px; }
+    .said { overflow-wrap: anywhere; }
+    .said :is(p, ul, ol, pre, table) { margin: 0 0 6px; }
+    .said > :last-child { margin-bottom: 0; }
+    .said :is(p, li) { white-space: pre-wrap; }
+    .said :is(ul, ol) { padding-left: 18px; }
+    .said .h { font-weight: 600; }
+    .said code { padding: 0 3px; border-radius: 3px; background: var(--v-wash); font: 12px var(--v-mono); }
+    .said pre { padding: 7px 9px; border-radius: 6px; background: var(--v-wash); overflow: auto; font: 11.5px/1.45 var(--v-mono); }
+    .said table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 12px; }
+    .said :is(th, td) { padding: 3px 10px 3px 0; border-bottom: 1px solid var(--v-hair); text-align: left; vertical-align: top; white-space: nowrap; }
+    .said th { font-weight: 600; color: var(--v-ink-2); }
+    .said .link { text-decoration: underline dotted var(--v-muted); text-underline-offset: 2px; }
+    .said .url { font-size: 11px; color: var(--v-muted); }
+    .call { font-size: 12px; color: var(--v-muted); }
+    .told { align-self: flex-end; max-width: 88%; font-size: 12px; color: var(--v-muted); margin-top: -4px; }
+    .told > summary { display: flex; align-items: baseline; gap: 8px; list-style: none; white-space: nowrap; cursor: default; }
+    .told > summary::-webkit-details-marker { display: none; }
+    .told-kind { flex: none; font: 10.5px var(--v-mono); }
+    .told-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--v-ink-2); }
+    .told[open] .told-title { color: var(--v-ink); }
+    .told pre { margin: 4px 0 2px; padding: 6px 8px; max-height: 240px; overflow: auto; border-radius: 5px; background: var(--v-wash); color: var(--v-ink-2); font: 11px/1.4 var(--v-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .call + .call { margin-top: -5px; }
+    .call > summary { display: flex; align-items: baseline; gap: 8px; list-style: none; white-space: nowrap; }
+    .call > summary::-webkit-details-marker { display: none; }
+    .call-kind { flex: none; width: 38px; font: 10.5px var(--v-mono); }
+    .call-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--v-ink-2); }
+    .call:is([data-status="pending"], [data-status="in_progress"]) .call-title { animation: breathe 1.4s ease-in-out infinite; }
+    .call[data-status="failed"] .call-title { color: var(--bad); }
+    .call[open] .call-title { color: var(--v-ink); }
+    .call pre { margin: 4px 0 2px 46px; padding: 6px 8px; max-height: 180px; overflow: auto; border-radius: 5px; background: var(--v-wash); color: var(--v-ink-2); font: 11px/1.4 var(--v-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .call pre:empty { display: none; }
+    .plan { display: flex; flex-direction: column; gap: 1px; padding-left: 46px; font-size: 12px; color: var(--v-ink-2); }
+    .plan div::before { content: "○"; display: inline-block; width: 15px; color: var(--v-muted); }
+    .plan [data-status="in_progress"]::before { content: "◐"; color: var(--v-ink-2); }
+    .plan [data-status="completed"] { color: var(--v-muted); }
+    .plan [data-status="completed"]::before { content: "●"; }
+    .note { font-size: 11.5px; color: var(--v-muted); overflow-wrap: anywhere; }
+    .note.bad { color: var(--bad); }
+
+    /* what the harness asks: the one place the person answers it */
+    .ask { display: flex; flex-direction: column; gap: 6px; padding: 9px 10px; border: 1px solid var(--v-line); border-radius: 8px; background: var(--v-pane); box-shadow: inset 2px 0 0 var(--v-accent); }
+    .ask form { display: contents; }
+    .ask-op { font-size: 11px; color: var(--v-muted); }
+    .ask-title { font-weight: 600; overflow-wrap: anywhere; }
+    .ask p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .ask pre { margin: 0; padding: 6px 8px; max-height: 200px; overflow: auto; border-radius: 5px; background: var(--v-wash); font: 11px/1.4 var(--v-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .ask-label { font-size: 11px; color: var(--v-muted); }
+    .ask-url { font: 11.5px var(--v-mono); overflow-wrap: anywhere; }
+    .ask-error { color: var(--bad); font-size: 12px; }
+    .ask-field { display: flex; flex-direction: column; gap: 3px; }
+    .ask-field :is(input:not([type="checkbox"]), textarea, select) { box-sizing: border-box; width: 100%; padding: 4px 7px; border: 1px solid var(--v-line); border-radius: 5px; background: var(--v-pane); color: var(--v-ink); }
+    .ask-field textarea { min-height: 54px; resize: vertical; }
+    .ask-check { display: flex; align-items: baseline; gap: 6px; }
+    .ask-when { display: flex; gap: 6px; }
+    .hint { font-size: 11px; color: var(--v-muted); }
+    .ask-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+    .btn { all: unset; box-sizing: border-box; padding: 3px 10px; border: 1px solid var(--v-line); border-radius: 6px; background: var(--v-pane); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+    .btn:hover { background: var(--v-wash); }
+    .btn.main { border-color: var(--v-ink); background: var(--v-ink); color: var(--v-pane); }
+    .btn:disabled { opacity: .45; pointer-events: none; }
+    .ask.done { flex-direction: row; gap: 6px; padding: 0; border: 0; background: none; box-shadow: none; font-size: 12px; color: var(--v-muted); }
+    .ask.done .ask-title { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; color: var(--v-ink-2); }
+    .ask.done span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* what a slot of the person's waits for: a file from here, or the phone's camera or pad */
+    #captures:not(:empty) { display: flex; flex-direction: column; gap: 4px; }
+    .capture { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+    .capture span { flex: 1; min-width: 0; }
+
+    /* what it is doing now, and the prompt */
+    #doing { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px 6px; font-size: 12px; color: var(--v-muted); white-space: nowrap; overflow: hidden; }
+    #doing .dot { flex: none; margin: 0; }
+    #doing span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    #composer { flex: none; display: flex; flex-direction: column; gap: 6px; margin: 0 10px 10px; padding: 8px 8px 6px 10px; border: 1px solid var(--v-line); border-radius: 10px; background: var(--v-pane); }
+    #composer:focus-within { border-color: color-mix(in srgb, var(--v-ink) 30%, var(--v-line)); }
+    #chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    #chips:empty { display: none; }
+    .chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 1px 3px 1px 7px; border: 1px solid var(--v-hair); border-radius: 10px; font-size: 11px; color: var(--v-ink-2); }
+    .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip:not(:has(button)) { padding-right: 7px; }
+    .chip.pointed { background: color-mix(in srgb, var(--v-accent) 10%, var(--v-pane)); }
+    .chip.pane { border-style: dashed; }
+    .chip button { all: unset; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; color: var(--v-muted); }
+    .chip button:hover { background: var(--v-wash); color: var(--v-ink); }
+    #prompt { all: unset; box-sizing: border-box; display: block; width: 100%; min-height: 20px; max-height: 168px; overflow-y: auto; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+    #prompt::placeholder { color: var(--v-muted); }
+    #settings { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center; padding: 6px 0 2px; border-top: 1px solid var(--v-hair); font-size: 12px; color: var(--v-muted); }
+    #tools { display: flex; align-items: center; gap: 2px; min-width: 0; font-size: 12px; color: var(--v-muted); }
+    #tools .grow { flex: 1; }
+    .tool { all: unset; display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 140px; padding: 3px 6px; border-radius: 5px; white-space: nowrap; }
+    .tool > span { overflow: hidden; text-overflow: ellipsis; }
+    .tool svg { flex: none; width: 13px; height: 13px; }
+    .tool:hover { background: var(--v-wash); color: var(--v-ink); }
+    .tool[aria-pressed="false"] { text-decoration: line-through; opacity: .6; }
+    .tool.missing > span::after { content: " · no key"; color: var(--bad); }
+    #connectors { display: contents; }
+    .pick { position: relative; display: inline-flex; min-width: 0; }
+    .pick select { all: unset; min-width: 0; max-width: 150px; padding: 3px 16px 3px 6px; border-radius: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pick select:hover { background: var(--v-wash); color: var(--v-ink); }
+    .pick::after { content: ""; position: absolute; right: 7px; top: 50%; width: 4px; height: 4px; border: solid currentColor; border-width: 0 1px 1px 0; transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+    #settings .pick select { max-width: none; color: var(--v-ink); }
+    .go { all: unset; flex: none; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: var(--v-ink); color: var(--v-pane); }
+    .go:disabled { opacity: .2; }
+    .go svg { width: 14px; height: 14px; stroke-width: 2; }
+    #views-head, #to-views { display: none; }
+
+    /* A phone's width: Activity takes the window, and the views of the task open take it in turn (Views, and back); text
+       large enough to read, targets large enough to tap, fields at 16 pixels so a phone does not zoom into them, and the
+       screen's own edges kept clear when Desktop is a web app of its own. */
+    @media (max-width: 700px) {
+      html, body { height: 100dvh; }
+      body { flex-direction: column; }
+      body.vindu-theme { font-size: 15px; }
+      #views { display: none; }
+      #side { flex: 1; width: auto; min-height: 0; border-left: 0; padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+      body[data-pane="views"] #side { display: none; }
+      body[data-pane="views"] #views { display: block; flex: 1; min-height: 0; }
+      body[data-pane="views"] #views-head { display: flex; }
+      #views-head { flex: none; align-items: center; gap: 4px; min-height: 52px; padding: env(safe-area-inset-top) calc(8px + env(safe-area-inset-right)) 0 calc(6px + env(safe-area-inset-left)); background: var(--v-head); border-bottom: 1px solid var(--v-hair); }
+      #views-head div { flex: 1; min-width: 0; }
+      #views-title { margin: 0; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #views-head p { margin: 0; font-size: 12px; color: var(--v-muted); }
+      #head { flex-wrap: wrap; min-height: 52px; padding: env(safe-area-inset-top) 6px 0 16px; gap: 0 2px; }
+      /* in a task: its title on a line of its own, then its views and its tools; the keys and the phone window are Activity's */
+      #head:has(#back:not([hidden])) { padding: env(safe-area-inset-top) 8px 6px 4px; }
+      #head:has(#back:not([hidden])) #heading { flex: 1 1 calc(100% - 48px); padding: 8px 0 4px; }
+      #head:has(#back:not([hidden])) :is(#connector-keys, #phone) { display: none; }
+      #title { font-size: 15px; } #where { font-size: 12px; }
+      .icon { width: 44px; height: 44px; border-radius: 12px; }
+      .icon svg { width: 19px; height: 19px; }
+      #opens:not([hidden]) { display: flex; flex: 0 1 auto; min-width: 0; gap: 0; margin-left: auto; overflow-x: auto; scrollbar-width: none; } /* on one line: across, where a phone is too narrow for them all */
+      #opens .icon { flex: none; }
+      #to-views:not([hidden]) { all: unset; display: inline-flex; align-items: center; gap: 6px; flex: none; height: 36px; margin: 4px 4px 4px clamp(4px, calc((100vw - 340px) * 2), 44px); padding: 0 16px; border-radius: 18px; background: var(--v-ink); color: var(--v-pane); font-size: 14px; font-weight: 600; cursor: pointer; }
+      #to-views:focus-visible { outline: 2px solid var(--v-accent); outline-offset: 2px; }
+      #to-views svg { width: 16px; height: 16px; }
+      #to-views[data-fresh="true"]::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--v-accent); box-shadow: 0 0 0 2px var(--v-ink); }
+      #list { padding: 6px 8px; }
+      #tasks:empty::before { font-size: 14px; }
+      .card { grid-template-columns: 14px 1fr auto; padding: 11px 10px; border-radius: 10px; row-gap: 2px; }
+      .card-title { font-size: 15px; } .card-line { font-size: 13px; } .card-when { font-size: 12px; }
+      .dot { margin-top: 7px; width: 7px; height: 7px; }
+      .act-tools { top: 9px; } .act-tools button { font-size: 12.5px; line-height: 24px; padding: 0 8px; }
+      #tasks h3 { font-size: 12px; margin: 14px 10px 4px; }
+      #next { font-size: 13px; padding: 8px 10px; }
+      #thread { padding: 12px 14px; }
+      .turns { gap: 10px; }
+      .call, .told, .note, .plan { font-size: 13px; }
+      .call > summary, .told > summary { align-items: center; min-height: 34px; }
+      .btn { box-sizing: border-box; min-height: 44px; min-width: 64px; padding: 11px 16px; font-size: 15px; line-height: 20px; border-radius: 12px; text-align: center; }
+      .ask { padding: 12px; border-radius: 12px; }
+      .ask-field :is(input:not([type="checkbox"]), textarea, select), #pin-name { font-size: 16px; padding: 8px 10px; border-radius: 8px; }
+      #viewbar { padding: 6px 12px 6px 16px; font-size: 13px; gap: 4px 8px; }
+      #composer { margin: 0 8px max(8px, env(safe-area-inset-bottom)); padding: 10px 10px 8px 12px; border-radius: 16px; }
+      #prompt { font-size: 16px; max-height: 30dvh; min-height: 44px; padding: 11px 0; }
+      #tools { flex-wrap: nowrap; gap: 2px; font-size: 14px; }
+      /* a new task's choices on one line between attach and send, across where they don't all fit */
+      #fresh:not([hidden]) { display: flex; align-items: center; flex: 1 1 0; min-width: 0; overflow-x: auto; scrollbar-width: none;
+        -webkit-mask-image: linear-gradient(to right, #000 86%, transparent); mask-image: linear-gradient(to right, #000 86%, transparent); }
+      #fresh > * { flex: none; }
+      #fresh:not([hidden]) ~ .grow { display: none; }
+      .tool { box-sizing: border-box; min-height: 44px; padding: 0 10px; max-width: 46vw; border-radius: 10px; }
+      .pick select { box-sizing: border-box; height: 44px; line-height: 44px; font-size: 16px; padding: 0 22px 0 10px; max-width: 46vw; border-radius: 10px; }
+      .pick::after { transform: translateY(-50%) rotate(45deg); right: 9px; }
+      #settings { font-size: 14px; }
+      .go { width: 44px; height: 44px; }
+      .go svg { width: 17px; height: 17px; }
+      .chip { font-size: 12.5px; padding: 3px 4px 3px 9px; }
+      .chip button { width: 28px; height: 28px; }
+      #doing { font-size: 13px; }
+      /* Vindu's panes: their heads, their tools and the bar under them, for a finger */
+      body.vindu-theme .vindu-desk { bottom: 44px; } /* body. before each: Vindu's own styles come after these, as the page draws */
+      body.vindu-theme .vindu-bar { height: 44px; gap: 6px; font-size: 12px; }
+      body.vindu-theme :is(.vindu-bar-view, .vindu-bar-rem) { height: 40px; padding: 0 12px; border-radius: 8px; }
+      body.vindu-theme .vindu-pane-head { height: 44px; font-size: 13px; padding-left: 14px; }
+      body.vindu-theme .vindu-pane-tools { opacity: 1; }
+      body.vindu-theme .vindu-pane-tools button { width: 44px; height: 44px; border-radius: 10px; }
+      body.vindu-theme .vindu-pane-tools svg { width: 17px; height: 17px; }
+    }
+  </style>
+</head>
+<body class="vindu-theme">
+  <header id="views-head"><button type="button" id="views-back" class="icon" title="Back to the task's thread"><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button><div><h2 id="views-title"></h2><p>Its views</p></div></header>
+  <main id="views"><p id="empty">Views appear here as tasks show them.</p></main>
+  <aside id="side" aria-label="Activity">
+    <header id="head">
+      <button type="button" id="back" class="icon" title="All activity (Esc)" hidden><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button>
+      <div id="heading"><h1 id="title">Activity</h1><p id="where" hidden></p></div>
+      <button type="button" id="to-views" title="The task's views: what it shows, one after another" hidden><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="4.5" rx="1"/><rect x="2.5" y="9" width="11" height="4.5" rx="1"/></svg>Views</button>
+      <span id="opens" hidden>
+        <button type="button" id="term" class="icon" title="A terminal in the task's folder, with your own shell; the model reads it only once you share it"><svg viewBox="0 0 16 16"><path d="M2.5 3.5h11v9h-11zM5 6.5l2 1.5-2 1.5M8.5 10h2.5"/></svg></button>
+        <button type="button" id="page" class="icon" title="A browser page of yours; the model reads it only once you share it"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c-2 2.8-2 8.2 0 11M8 2.5c2 2.8 2 8.2 0 11"/></svg></button>
+        <button type="button" id="branch" class="icon" title="New task from here: a fresh session of the harness in the same folder, with what the view shows carried exactly, and what you did in it"><svg viewBox="0 0 16 16"><path d="M5 2.5v11M5 8.5c0-3 6-2 6-5M11 3.5v0M11 13.5v0"/><circle cx="11" cy="3.5" r="1.3"/><circle cx="5" cy="13.5" r="1.3"/></svg></button>
+        <button type="button" id="reminders" class="icon" title="Reminders: what this task set to come back to, and when"><svg viewBox="0 0 16 16"><circle cx="8" cy="8.5" r="5"/><path d="M8 6v2.5l1.8 1.2M3 3.5l2-1.5M13 3.5l-2-1.5"/></svg></button>
+        <button type="button" id="export" class="icon" title="Export the task as one archive: its record and the window's, each file with its digest"><svg viewBox="0 0 16 16"><path d="M8 2.5v8M5 7.5l3 3 3-3M3 12.5h10"/></svg></button>
+        <button type="button" id="reveal" class="icon" title="Open the task's folder" hidden><svg viewBox="0 0 16 16"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg></button>
+      </span>
+      <button type="button" id="connector-keys" class="icon" title="Connector keys: each connector's and server's key, kept by this computer's keychain"><svg viewBox="0 0 16 16"><circle cx="5.5" cy="10.5" r="3"/><path d="M7.6 8.4 13.5 2.5M11 5l1.5 1.5M12.5 3.5 14 5"/></svg></button>
+      <button type="button" id="phone" class="icon" aria-pressed="false" title="The phone window: the same views on your phone or tablet, off until you turn it on"><svg viewBox="0 0 16 16"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12.5h2"/></svg></button>
+    </header>
+    <div id="viewbar" hidden>
+      <span id="mode"></span>
+      <button type="button" id="pin" class="tool" title="Keep this view as a template, to start a task like this with"><span>Pin this view…</span></button>
+      <span id="pinning" hidden><input id="pin-name" placeholder="Name for this view" aria-label="Name for this view"><button type="button" id="pin-save" class="btn">Keep</button></span>
+      <button type="button" id="arrange" class="tool" hidden title="Keep the template with the panes where you have put them"><span>Keep my arrangement</span></button>
+      <button type="button" id="dynamic" class="tool" hidden title="The model may add, move and replace panes again"><span>Let the model change it</span></button>
+    </div>
+    <div id="list"><div id="appnotes" aria-live="polite"></div><div id="next" hidden></div><div id="tasks" aria-label="Open tasks, by what each needs from you"></div></div>
+    <div id="thread" hidden></div>
+    <div id="doing" hidden><span class="dot"></span><span id="doing-text"></span></div>
+    <form id="composer" autocomplete="off">
+      <div id="captures" aria-live="polite"></div>
+      <div id="chips" aria-label="What goes with your next message"></div>
+      <textarea id="prompt" rows="1" placeholder="Start a task…"></textarea>
+      <div id="settings" hidden></div>
+      <div id="tools">
+        <button type="button" id="attach" class="icon" title="Attach files (or drop them on the window)"><svg viewBox="0 0 16 16"><path d="M13 7.5 8 12.5a3 3 0 0 1-4.3-4.2l5.6-5.6a2 2 0 0 1 2.8 2.8L6.6 11a1 1 0 0 1-1.4-1.4l4.6-4.6"/></svg></button>
+        <span id="fresh">
+          <span class="pick"><select id="harness" title="The harness that does the task"><option value="" disabled>No processor available</option></select></span>
+          <span class="pick"><select id="template" title="The view: the model composes it, or a template of yours, with its slots and sources"><option value="">View: the model's</option></select></span>
+          <button type="button" id="place" class="tool"><svg viewBox="0 0 16 16"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg><span></span></button>
+          <button type="button" id="unplace" class="icon" title="Back to a new folder" hidden><svg viewBox="0 0 16 16"><path d="M5 5l6 6M11 5l-6 6"/></svg></button>
+          <span id="connectors" aria-label="Connectors for the next task" hidden></span>
+        </span>
+        <button type="button" id="switches" class="tool" hidden><span></span></button>
+        <span id="servers"></span>
+        <span class="grow"></span>
+        <button id="send" class="go" title="Send (Enter)" disabled><svg viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4"/></svg></button>
+        <button type="button" id="stop" class="go" title="Stop the turn" hidden><svg viewBox="0 0 16 16"><rect x="5" y="5" width="6" height="6" rx="1" fill="currentColor" stroke="none"/></svg></button>
+      </div>
+    </form>
+  </aside>
+  <script src="renderer.bundle.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+version: 2
+# Weekly, grouped, and a week behind each release: the same wait as pnpm's minimumReleaseAge (pnpm-workspace.yaml).
+# Security updates come at once.
+updates:
+  - package-ecosystem: npm # pnpm's lockfile
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # The types follow the Node the app runs on (24, package.json's engines), not the newest Node.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
