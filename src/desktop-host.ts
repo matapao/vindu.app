@@ -123,7 +123,11 @@ export async function openDesktopHost(o: AppOptions) {
       return true;
     },
     tokenOf: id => keptToken(tokens, `app:${id}`),
-    door: app => ({ ...endpoint?.env(app.id), VINDU_SHELL: shellOrigins().join(' ') }),
+    // SHELL_ORIGINS is the name apps read; VINDU_SHELL stays for apps that still read it.
+    door: app => {
+      const shell = shellOrigins().join(' ');
+      return { ...endpoint?.env(app.id), SHELL_ORIGINS: shell, VINDU_SHELL: shell };
+    },
     connectors: () => availableConnectors().connectors.map(c => ({ id: `connector:${c.name}`, name: c.title })),
     processors: () => processors.map(h => ({ ...h, kind: 'harness', where: [], models: [] })),
     grants,

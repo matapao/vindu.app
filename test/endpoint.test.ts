@@ -19,6 +19,8 @@ test('the app HTTP service binds requests to an app token and rotates it on rest
     assert.deepEqual(endpoint.env('unregistered'), {});
     const original = endpoint.env(processorApp.id);
     const access = endpoint.env(storageApp.id);
+    assert.equal(original.HARNESS_URL, original.CELLER_URL);
+    assert.equal(original.HARNESS_TOKEN, original.CELLER_TOKEN);
     const request = (token: string, route: string, input?: unknown, headers?: Record<string, string>) => fetch(`${original.CELLER_URL}${route}`, {
       ...(input === undefined ? {} : { method: 'POST', body: JSON.stringify(input) }),
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...headers },
