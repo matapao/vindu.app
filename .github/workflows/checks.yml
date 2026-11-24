@@ -1,0 +1,63 @@
+name: Checks
+# The app and its Electron window, built against the celler and vindu revisions dependencies.json pins, on macOS.
+# Until dependencies.json names public revisions of both, the desktop checks wait and say so.
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+
+jobs:
+  pins:
+    name: Pinned revisions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.pins.outputs.ready }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: pins
+        run: |
+          if node -e "const pins = require('./dependencies.json'); process.exit(['celler', 'vindu'].every((n) => /^https:\/\//.test(pins[n]?.url ?? '') && /^[0-9a-f]{40}$/i.test(pins[n]?.sha ?? '')) ? 0 : 1)"; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::dependencies.json names no public celler and vindu revisions yet, so the desktop checks wait for them'
+          fi
+
+  desktop:
+    name: Desktop
+    needs: pins
+    if: needs.pins.outputs.ready == 'true'
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: vindu.app
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - run: corepack enable pnpm
+      - name: Build the app with its pinned Celler and Vindu revisions
+        working-directory: vindu.app
+        run: node scripts/bootstrap.mjs
+      - name: Check Vindu
+        working-directory: vindu.app
+        run: |
+          pnpm lint
+          pnpm exec playwright install chromium
+          pnpm typecheck
+          pnpm test
+          pnpm test:browser
+      - name: Check Electron
+        working-directory: vindu.app/frame
+        run: |
+          pnpm electron:fetch
+          pnpm typecheck
+          pnpm test
+          pnpm pack:app --dir
+          pnpm test:packed
+          pnpm pack:app --client --dir
+          pnpm test:client

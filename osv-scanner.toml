@@ -1,0 +1,7 @@
+# Known advisories accepted here, each with why it cannot reach Vindu.app's users and when to look again. A new one
+# fails CI.
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-01T00:00:00Z
+reason = "minimatch 10 is ESLint's own (eslint 10.14.0, @eslint/js): lint tooling only, matching the repository's own globs, and never shipped. The app's builders take minimatch 11.0.1 (pnpm-workspace.yaml's overrides). Look again when ESLint moves to minimatch 11."

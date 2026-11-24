@@ -1,0 +1,23 @@
+# pnpm's settings for vindu: what comes into the lockfile. The desktop app's window (frame/) is a package of its own here.
+packages:
+  - frame
+# - a version only once it has been out for a week: most malicious ones are found and taken down within hours;
+minimumReleaseAge: 10080
+# - no version whose publisher is proven less well than for the versions before it;
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 43200
+# - a dependency's own dependencies only from the registry, never from git or a tarball's address.
+blockExoticSubdeps: true
+# No package runs code as it is installed: each one with an install script is named here, and none runs.
+strictDepBuilds: true
+allowBuilds:
+  # It finds its own platform's binary, a package of its own; its script only checks for it.
+  esbuild: false
+  # Its binary comes with `pnpm --filter vindu-frame electron:fetch`, which runs the same script when asked to.
+  electron: false
+  # Its script picks the 7-Zip for Windows' installer by the machine it builds on; only a Windows build needs it.
+  electron-winstaller: false
+# Both builder consumers use the named minimatch API. Pin the release with bounded pattern expansion.
+overrides:
+  'app-builder-lib>minimatch': 11.0.1
+  '@electron/universal>minimatch': 11.0.1
