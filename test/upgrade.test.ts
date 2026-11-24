@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
-import { processors } from './consumer.js';
 import os from 'node:os';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { test } from 'vitest';
 import { startApp, type App } from '../src/app.js';
 import { keptToken, upgradePageCredentials } from '../src/page-credentials.js';
@@ -51,50 +49,5 @@ test('upgrading revokes previously logged local links, redacts old records and p
     app = await startApp(options);
     assert.equal(keptToken(file, 'desktop'), nextDesktop);
     assert.equal(keptToken(file, 'app:notes'), nextNote);
-  } finally { await app?.close(); fs.rmSync(userData, { recursive: true, force: true }); }
-});
-
-test('unbound legacy grants and storage require the owner to confirm each exact app and folder', async () => {
-  const userData = temporary();
-  const installed = ['reports', 'notes', 'new-app'].map(id => {
-    const folder = path.join(userData, id);
-    fs.mkdirSync(folder);
-    fs.writeFileSync(path.join(folder, 'app.json'), JSON.stringify({ id, name: id, asks: ['processors', 'storage'], serve: { command: 'node' } }));
-    return folder;
-  });
-  const [reports, notes] = installed;
-  const storage = path.join(userData, 'apps', 'notes', 'storage');
-  fs.mkdirSync(storage, { recursive: true });
-  fs.writeFileSync(path.join(storage, 'saved.txt'), 'saved by the original app');
-  const database = path.join(userData, 'celler');
-  fs.mkdirSync(database);
-  const db = new DatabaseSync(path.join(database, 'runs.sqlite'));
-  try {
-    db.exec('CREATE TABLE vindu_apps (id TEXT PRIMARY KEY, grants TEXT NOT NULL, budget TEXT NOT NULL)');
-    db.prepare('INSERT INTO vindu_apps VALUES (?,?,?)').run('reports', '["codex"]', '{"tokens":100,"cost":0,"minutes":0}');
-  } finally { db.close(); }
-  const configure = (restoreFolderAccess: Record<string, string>) => fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ installed, restoreFolderAccess }));
-  let app: App | undefined;
-  try {
-    configure({ reports: notes });
-    const options = { userData, home: userData, port: 18744, processors, tailscale: null };
-    app = await startApp(options);
-    const ids = () => app!.shell.apps().map(a => a.id);
-    assert.deepEqual(ids(), ['desktop', 'new-app']);
-    assert.deepEqual(app.appAccess('reports'), {});
-    assert.deepEqual(app.appAccess('notes'), {});
-    configure({ reports, notes });
-    assert.deepEqual(ids(), ['desktop', 'reports', 'notes', 'new-app']);
-    assert.deepEqual(app.celler.grants('reports'), ['codex']);
-    assert.equal(app.celler.budget('reports').tokens, 100);
-    const credentials = app.appAccess('notes');
-    const access = await (await fetch(credentials.CELLER_URL + '/access', { headers: { authorization: 'Bearer ' + credentials.CELLER_TOKEN } })).json();
-    assert.equal(fs.readFileSync(path.join(access.storage, 'saved.txt'), 'utf8'), 'saved by the original app');
-    configure({});
-    await app.close();
-    app = undefined;
-    app = await startApp(options);
-    assert.deepEqual(ids(), ['desktop', 'reports', 'notes', 'new-app']);
-    assert.deepEqual(app.celler.grants('reports'), ['codex']);
   } finally { await app?.close(); fs.rmSync(userData, { recursive: true, force: true }); }
 });

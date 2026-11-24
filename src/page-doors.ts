@@ -36,7 +36,6 @@ export type PageDoors = ReturnType<typeof pageDoors>;
 const PARAM = 'vindu-door';
 const head = { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' };
 type Door = { port: number; server: http.Server; clients: Map<Duplex, string> };
-type Target = { port: number; host?: string; folderRoot?: string };
 
 /** A cookie's value from a request's Cookie header. */
 const cookie = (header: string | undefined, name: string) => {
@@ -75,52 +74,23 @@ export function pageDoors(o: PageDoorsSetup) {
   const shown = new Map<string, Set<string>>(); // the origins each task showed: their doors close with it
   let closed = false;
 
-  // Each origin has its own cookie name and credential. Folder servers never receive gateway cookies.
-  const door = (scope: string, target: Target) => {
+  // Each origin has its own cookie name and credential.
+  const door = (scope: string) => {
     const clients = new Map<Duplex, string>();
-    const cookieName = `${PARAM}-${scope}`;
-    const upstreamPath = (p: string) => target.folderRoot && p.startsWith('/app/') ? target.folderRoot + p.slice(5) : p;
-    // Ports on a hostname share a cookie store. Keep server-issued app sessions private to this app and device.
-    const cookiePrefix = (device: string) => `vindu-app-${mac(device, 'cookies:' + scope)}-`;
-    const externalPath = (p: string) => target.folderRoot && p.startsWith(target.folderRoot) ? '/app/' + p.slice(target.folderRoot.length) : p;
-    const appCookie = (line: string, device: string, secure: boolean) => {
-      const [pair, ...attributes] = line.split(';'), at = pair.indexOf('=');
-      if (at < 1 || !/^[!#$%&'*+.^_`|~A-Za-z0-9-]+$/.test(pair.slice(0, at)) || /^vindu-(?:door|app)/i.test(pair)) return [];
-      const kept = attributes.map(a => a.trim()).filter(a => !/^(?:domain\s*=|httponly$)/i.test(a))
-        .map(a => /^path=/i.test(a) ? 'Path=' + externalPath(a.slice(5)) : a);
-      if (secure && !kept.some(a => a.toLowerCase() === 'secure')) kept.push('Secure');
-      return [[cookiePrefix(device) + pair, 'HttpOnly', ...kept].join('; ')];
-    };
-    const locationFor = (location: string, origin: string, requestPath: string) => {
-      const backend = `http://127.0.0.1:${target.port}`;
-      const url = URL.parse(location, backend + upstreamPath(requestPath));
-      if (!url || !['http:', 'https:'].includes(url.protocol)) return undefined;
-      const local = url.origin === origin || url.origin === backend || url.origin === `http://localhost:${target.port}`;
-      if (local) return externalPath(url.pathname) + url.search + url.hash;
-      // Let apps link outside normally, but never redirect a browser carrying the host's private path.
-      return target.folderRoot && url.href.includes(target.folderRoot) ? undefined : url.href;
-    };
+    const cookieName = `${PARAM}-${scope}`, target = `${scope}.localhost:${o.hostPort}`;
     const originOf = (req: http.IncomingMessage) => {
       if (open.get(scope)?.server !== server) return undefined;
       const port = (server.address() as { port: number } | null)?.port;
       const host = (req.headers.host ?? '').toLowerCase();
-      if ([...o.names(), ...o.lan()].some(n => host === `${n.toLowerCase()}:${port}`)) return `https://${host}`;
-      const names = target.host ? [] : ['localhost', '127.0.0.1'];
-      if (names.some(n => host === `${n.toLowerCase()}:${port}`)) return `http://${host}`;
-      return undefined;
+      return [...o.names(), ...o.lan()].some(n => host === `${n.toLowerCase()}:${port}`) ? `https://${host}` : undefined;
     };
     const track = (socket: Duplex, device: string) => {
       if (!clients.has(socket)) socket.once('close', () => clients.delete(socket));
       clients.set(socket, device);
     };
-    const headersFor = (req: http.IncomingMessage, device: string) => {
-      const headers = { ...req.headers, host: target.host ?? req.headers.host };
+    const headersFor = (req: http.IncomingMessage) => {
+      const headers = { ...req.headers, host: target };
       delete headers.cookie;
-      if (!target.host) {
-        const prefix = cookiePrefix(device);
-        const own = req.headers.cookie?.split(';').map(c => c.trim()).filter(c => c.startsWith(prefix)).map(c => c.slice(prefix.length));
-        if (own?.length) headers.cookie = own.join('; ');
-      }
       // A web app does not receive a token-bearing address of a parent or a referring task.
       delete headers.referer;
       return headers;
@@ -141,58 +111,24 @@ export function pageDoors(o: PageDoorsSetup) {
       const device = whose(cookie(req.headers.cookie, cookieName), scope);
       if (!device || (!['GET', 'HEAD'].includes(req.method ?? '') && req.headers.origin !== origin)) { res.writeHead(403, head).end(); return; }
       track(req.socket, device);
-      const up = http.request({ host: '127.0.0.1', port: target.port, method: req.method, path: upstreamPath(onward), headers: headersFor(req, device) }, r => {
+      const up = http.request({ host: '127.0.0.1', port: o.hostPort, method: req.method, path: onward, headers: headersFor(req) }, r => {
         const headers = { ...r.headers };
-        if (target.folderRoot && headers.location) {
-          const location = locationFor(headers.location, origin, onward);
-          if (!location) { r.resume(); res.writeHead(502, head).end(); return; }
-          headers.location = location;
-        }
-        if (headers['set-cookie']) headers['set-cookie'] = target.folderRoot ? headers['set-cookie'].flatMap(line => appCookie(line, device, origin.startsWith('https:'))) : [];
-        delete headers['clear-site-data']; headers['referrer-policy'] = 'no-referrer';
+        delete headers['set-cookie']; delete headers['clear-site-data']; headers['referrer-policy'] = 'no-referrer';
         res.writeHead(r.statusCode ?? 502, headers); r.pipe(res);
       });
       up.on('error', () => { if (!res.headersSent) res.writeHead(502, head); res.end(); });
       res.on('close', () => up.destroy());
       req.pipe(up);
     });
-    if (!target.host) server.on('upgrade', (req, socket, early) => {
-      const origin = originOf(req), device = whose(cookie(req.headers.cookie, cookieName), scope);
-      const path = req.url ?? '/';
-      const url = requestTarget(req.url);
-      if (!url) { socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n'); return; }
-      if (!device || !origin || req.headers.origin !== origin || req.headers.upgrade?.toLowerCase() !== 'websocket' || url.searchParams.has(PARAM)) {
-        socket.end('HTTP/1.1 403 Forbidden\r\n\r\n'); return;
-      }
-      track(socket, device);
-      const up = http.request({ host: '127.0.0.1', port: target.port, path: upstreamPath(path), headers: headersFor(req, device) });
-      up.on('upgrade', (reply, upstream, extra) => {
-        if (socket.destroyed) { upstream.destroy(); return; }
-        const lines = ['HTTP/1.1 101 Switching Protocols'];
-        for (let i = 0; i < reply.rawHeaders.length; i += 2) {
-          if (reply.rawHeaders[i].toLowerCase() !== 'set-cookie') lines.push(`${reply.rawHeaders[i]}: ${reply.rawHeaders[i + 1]}`);
-        }
-        socket.write(lines.join('\r\n') + '\r\n\r\n');
-        if (extra.length) socket.write(extra);
-        if (early.length) upstream.write(early);
-        upstream.on('error', () => socket.destroy()); upstream.on('close', () => socket.destroy());
-        socket.once('close', () => upstream.destroy());
-        upstream.pipe(socket); socket.pipe(upstream);
-      });
-      up.on('response', reply => { reply.resume(); socket.destroy(); });
-      up.on('error', () => socket.destroy());
-      socket.once('error', () => up.destroy()); socket.once('close', () => up.destroy());
-      up.end();
-    });
     return { server, clients };
   };
   /** The door of an origin, opened now if it is not yet, and served on the Wi-Fi and the tailnet before it is told. */
-  const doorOf = (name: string, target: Target = { port: o.hostPort, host: `${name}.localhost:${o.hostPort}` }): Promise<Door> => {
+  const doorOf = (name: string): Promise<Door> => {
     let d = doors.get(name);
     if (!d) {
       d = (async () => {
         if (closed) throw new Error('the core is stopping');
-        const { server, clients } = door(name, target);
+        const { server, clients } = door(name);
         await new Promise<void>((ok, no) => { server.once('error', no); server.listen(0, '127.0.0.1', () => { server.off('error', no); ok(); }); });
         if (closed || doors.get(name) !== d) { server.close(); throw new Error('The view was closed'); }
         const opened = { port: (server.address() as { port: number }).port, server, clients };
@@ -235,14 +171,6 @@ export function pageDoors(o: PageDoorsSetup) {
         return `${at}:${ports.get(m[1])}${before}${before.includes('?') ? '&' : '?'}${PARAM}=${encodeURIComponent(keyOf(device, m[1]))}${hash < 0 ? '' : rest.slice(hash)}`;
       });
     },
-    async folder(id: string, local: URL, via: Away) {
-      if (!via.device || !o.devices().includes(via.device)) throw new Error('Pair this device to open an app');
-      const scope = `folder-${id}`;
-      const { port } = await doorOf(scope, { port: Number(local.port), folderRoot: local.pathname });
-      const url = new URL('/app/', `${via.secure ? 'https' : 'http'}://${via.host}`);
-      url.port = String(port); url.searchParams.set(PARAM, keyOf(via.device, scope)); return url.href;
-    },
-    async stopFolder(id: string) { if (shut(`folder-${id}`)) await refresh(); },
     revokeDevice(id: string) { for (const d of open.values()) for (const [socket, device] of d.clients) if (device === id) socket.destroy(); },
     /** The origins a task's view names, so their doors close with the task. */
     note(task: string, v: unknown) { const n = names(v); if (n.size) shown.set(task, new Set([...(shown.get(task) ?? []), ...n])); },

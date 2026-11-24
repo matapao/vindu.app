@@ -60,7 +60,7 @@ const connector = http.createServer(toNodeHandler(createMcpHandler(() => {
 await new Promise<void>(resolve => connector.listen(0, '127.0.0.1', resolve));
 const data = tmp('frame-live-core-'), frameData = tmp('frame-live-app-');
 fs.writeFileSync(path.join(data, 'settings.json'), JSON.stringify({
-  installed: [], apps: { servers: { billing: 'on' } }, servers: [{ type: 'http', name: 'billing', url: `http://127.0.0.1:${(connector.address() as net.AddressInfo).port}/mcp` }],
+  apps: { servers: { billing: 'on' } }, servers: [{ type: 'http', name: 'billing', url: `http://127.0.0.1:${(connector.address() as net.AddressInfo).port}/mcp` }],
 }));
 const env = launchEnv({ VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_CORE: path.join(import.meta.dirname, 'core.js') });
 

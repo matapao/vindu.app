@@ -2,12 +2,11 @@
 // Vindu serves task views and questions, in the desktop window, browser and paired devices.
 import fs from 'node:fs';
 import path from 'node:path';
-import { appEndpoint } from './app-endpoint.js';
 import type { Sender } from './web.js';
 import type { Opening } from './task-checkpoint.js';
 import { workFolder } from './work.js';
 import { openPath, pickFiles, pickFolder, pickSave } from './os.js';
-import type { AppOptions } from './desktop-settings.js';
+import { APP, type AppOptions } from './desktop-settings.js';
 import { openDesktopHost, requireLocalDesktop } from './desktop-host.js';
 import { taskActivity } from './desktop-task-activity.js';
 import { taskCaptures } from './desktop-task-captures.js';
@@ -19,8 +18,7 @@ const slug = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^\w]+/g,
 
 export async function startApp(o: AppOptions = {}) {
   const host = await openDesktopHost(o);
-  const { userData, home, send, tasksFolder, tilde, desktop, granted, budgetOf, processors, harnessOf,
-    currentAccess, ensureProcessor, celler, network, doors, appShell } = host;
+  const { userData, home, send, tasksFolder, tilde, desktop, granted, celler, network, doors, appShell } = host;
   const { availableConnectors, keyOf, connectorsDir, openKeys, keysFile } = host.connectors;
   const { files, attach } = host.attachments;
   const state = taskActivity(host);
@@ -67,7 +65,7 @@ export async function startApp(o: AppOptions = {}) {
     const was = opened.get(from); const t0 = need(from); if (!was) throw new Error(`no task ${from}`);
     const snapshot = t0.snapshot(); if (!snapshot.views.length) throw new Error('this task shows no view of cards to start from yet');
     return start({ ...was.q, template: undefined }, was.cwd, {
-      from: { snapshot, record: t0.record, task: from }, owner: was.owner,
+      from: { snapshot, record: t0.record, task: from },
     });
   });
   /** Open the task in its chosen folder, or in a new workspace named from the prompt. */
@@ -124,61 +122,12 @@ export async function startApp(o: AppOptions = {}) {
     routers.get(id)?.event?.(ev, 'main', (view, panel, msg) => sender.send('app', id, view, panel, msg));
   });
 
-  const endpoint = await appEndpoint({
-    current: currentAccess,
-    describe(app) {
-      const granted = celler.grants(app.id);
-      const storage = app.asks.includes('storage') ? path.join(userData, 'apps', app.id, 'storage') : undefined;
-      if (storage) fs.mkdirSync(storage, { recursive: true, mode: 0o700 });
-      return { app: app.id, processors: app.asks.includes('processors') ? processors.filter(h => granted.includes(h.id)) : [],
-        connectors: app.asks.includes('connectors') ? availableConnectors().connectors.filter(c => granted.includes(`connector:${c.name}`)).map(c => c.name) : [],
-        budget: budgetOf(app.id), ...(storage ? { storage } : {}) };
-    },
-    async start(app, input, signal) {
-      if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Expected a processor and prompt');
-      if (!o.connect) throw new Error('No consumer is attached to this task.');
-      const q = input as Record<string, unknown>;
-      const harness = harnessOf(q.processor);
-      ensureProcessor(app, harness);
-      if (Object.keys(q).some(key => !['processor', 'prompt', 'connectors'].includes(key))) throw new Error('A run accepts processor, prompt and connectors');
-      if (typeof q.prompt !== 'string' || !q.prompt.trim()) throw new Error('Give the task a prompt');
-      const selected = q.connectors === undefined ? [] : q.connectors;
-      if (!Array.isArray(selected) || !selected.every(name => typeof name === 'string' && app.asks.includes('connectors') && celler.grants(app.id).includes(`connector:${name}`))) {
-        throw new Error('Select connectors this app has access to');
-      }
-      const cwd = workFolder(path.join(tasksFolder(), app.id), q.prompt);
-      const openedTask = await start({ harness, connectors: selected }, cwd,
-        { owner: app, title: `${app.name}: ${q.prompt.trim().slice(0, 48)}` }).catch(error => {
-          try { fs.rmdirSync(cwd); } catch { /* The consumer may already have put files here. */ }
-          throw error;
-        });
-      const task = need(openedTask.id);
-      const cancel = () => { void task.cancel(); };
-      signal.addEventListener('abort', cancel, { once: true });
-      try {
-        signal.throwIfAborted();
-        const result = await runPrompt(openedTask.id, q.prompt);
-        return { task: openedTask.id, ...result };
-      } finally {
-        signal.removeEventListener('abort', cancel);
-      }
-    },
-    notify(app, input) {
-      if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Expected a notification');
-      const { title, body } = input as Record<string, unknown>;
-      if (typeof title !== 'string' || !title.trim() || title.length > 256 || body !== undefined && (typeof body !== 'string' || body.length > 4096)) throw new Error('Give the notification a short title and message');
-      appShell.page.send('shell:notice', { app: app.id, name: app.name, title, body: body ?? '' });
-      void network?.notify({ title: `${app.name}: ${title}`, body: typeof body === 'string' ? body : '', tag: app.id });
-    },
-  });
-  host.register(endpoint);
-
   for (const { id, load } of checkpoints.open()) {
     try {
       const saved = load();
-      const owner = currentAccess({ ...saved.owner, name: saved.owner.id, asks: [] });
-      if (!owner || owner.folder !== saved.owner.folder) throw new Error('The task’s original app is unavailable.');
-      await start(saved.opening, saved.cwd, { id, owner, saved });
+      // a task another app started, from when Vindu.app hosted other apps: there is no app to reopen it in
+      if (saved.owner.id !== APP.id || saved.owner.folder !== undefined) throw new Error('The task’s original app is unavailable.');
+      await start(saved.opening, saved.cwd, { id, saved });
     } catch (error) {
       unavailable.push(`Could not reopen task ${id}: ${(error as Error).message}`);
     }
@@ -188,7 +137,6 @@ export async function startApp(o: AppOptions = {}) {
     if (state.closing) return;
     state.closing = true;
     for (const id of tasks.keys()) { try { save(id); } catch { console.warn(`Could not save task ${id} before shutdown.`); } }
-    await endpoint?.close();
     await network?.close();
     doors.close();
     await media.close();
@@ -205,7 +153,7 @@ export async function startApp(o: AppOptions = {}) {
     activity: state.list, front: () => state.front, act: (id: string) => acts.get(id),
     pages: (task: string) => pages.pages(task), pageEval: (task: string, name: string, js: string) => pages.evaluate(task, name, js),
 
-    celler, appAccess: (app: string) => endpoint.env(app),
+    celler,
     /** The network side: a code to pair with, as the shell's Phone makes one (a test's other computer). */
     pairingCode: () => network!.devices.newCode().code,
   };

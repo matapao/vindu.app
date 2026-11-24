@@ -1,7 +1,7 @@
 // The app, as a process on this computer: its core, serving the shell and Desktop's page, which the person opens in their
 // own browser, or the desktop app shows (frame/). `npm start` starts it and opens the shell there; started again while it
 // runs, it opens the shell and leaves (--no-open: it only says where the shell is). Ctrl-C (or its signal) stops it, and
-// what it started with it: the tasks, the VM, the pages, the apps. VINDU_PORT: the shell's port (7300); VINDU_USER_DATA:
+// what it started with it: the tasks, the VM, the pages. VINDU_PORT: the shell's port (7300); VINDU_USER_DATA:
 // its folder, where the system keeps the app's data otherwise (a test's own, or a second core's); VINDU_TAILSCALE:
 // Tailscale's command line, in place of the one its installers put (a Pi's core, which runs as a user of its own, through sudo). Started by the desktop
 // app, it is given the app's link too (frame-link.ts): its browser views' pages live in the app, over their panes.

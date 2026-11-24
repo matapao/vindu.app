@@ -16,7 +16,6 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { readZip } from '../src/task-archive.js';
 import { startApp } from '../src/app.js';
 import type { Secrets } from '../src/secrets.js';
-import { keptToken } from '../src/web.js';
 
 const HOSTS = ['--host-resolver-rules=MAP other-site.test 127.0.0.1']; // "another site", served here
 /** Keys kept in memory, as the system's store keeps them: the test leaves the person's keychain alone. */
@@ -37,13 +36,9 @@ await (async () => {
   await new Promise<void>(r => site.listen(0, '127.0.0.1', r));
   port = (site.address() as { port: number }).port;
   const base = `http://127.0.0.1:${port}/`, other = `http://other-site.test:${port}/`;
-  const work = tmp('work-'), userData = tmp('userdata-'), tasksRoot = tmp('tasks-'), appDir = tmp('app-');
-  // another app, as a folder with its app.json: a page served by its own server, which the shell starts on its first click
-  fs.writeFileSync(path.join(appDir, 'app.json'), JSON.stringify({ id: 'other-app', name: 'Other App', icon: 'icon.svg', serve: { command: process.execPath, args: ['serve.mjs'] } }));
-  fs.writeFileSync(path.join(appDir, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="#888"/></svg>');
-  fs.writeFileSync(path.join(appDir, 'serve.mjs'), "import http from 'node:http'; const at = `/${process.env.APP_TOKEN}/`; http.createServer((q, r) => (q.url === at ? r.writeHead(200, { 'Content-Type': 'text/html' }).end('<!doctype html><title>Other App</title><h1>Other App (synthetic)</h1>') : r.writeHead(404).end())).listen(Number(process.env.PORT), '127.0.0.1');");
+  const work = tmp('work-'), userData = tmp('userdata-'), tasksRoot = tmp('tasks-');
   // where a task gets a folder of its own when the person picks none
-  fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ terminal: { shell: 'bash', login: false }, jobs: { on: true, perDay: 2 }, tasksFolder: tasksRoot, installed: [appDir] }));
+  fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ terminal: { shell: 'bash', login: false }, jobs: { on: true, perDay: 2 }, tasksFolder: tasksRoot }));
   // a connector: an HTTP API, described in plain words, with its guide; it takes a key the person has not set
   const conn = path.join(userData, 'connectors', 'accounts'); fs.mkdirSync(conn, { recursive: true });
   fs.writeFileSync(path.join(conn, 'connector.json'), JSON.stringify({ name: 'accounts', title: 'Accounts', kind: 'http', http: { base: `http://127.0.0.1:9/v1`, auth: { type: 'bearer', secret: 'accounts-key' } } }));
@@ -71,12 +66,12 @@ await (async () => {
   const shot = async (name: string) => { if (process.env.SMOKE_SHOT) await page.screenshot({ path: process.env.SMOKE_SHOT.replace(/\.png$/, `-${name}.png`) }); };
   let task = '';
   try {
-    // the shell: its grid, with each app on it; a click on Desktop's tile opens it in a tab of its own
+    // the shell: its grid, with Desktop on it; a click on Desktop's tile opens it in a tab of its own
     const sh = <T = unknown>(code: string) => shellPage.evaluate(code) as Promise<T>;
     const tile = (id: string) => `#grid .app[data-app="${id}"]`, codex = `#grants tr[data-app="desktop"] input[data-processor="codex"]`;
     const harnesses = () => js<string>(`[...document.getElementById('harness').options].map(o => o.value).join()`);
-    await until(() => sh<boolean>(`[...document.querySelectorAll('#grid .app img')].length === 2 && [...document.querySelectorAll('#grid .app img')].every(i => i.complete && i.naturalWidth > 0)`), 'the shell\'s grid');
-    check(await sh<string>(`[...document.querySelectorAll('#grid .app span')].map(s => s.textContent).join()`) === 'Vindu,Other App', 'the shell opens on its grid: Desktop and the other app, each with its icon and name');
+    await until(() => sh<boolean>(`[...document.querySelectorAll('#grid .app img')].length === 1 && [...document.querySelectorAll('#grid .app img')].every(i => i.complete && i.naturalWidth > 0)`), 'the shell\'s grid');
+    check(await sh<string>(`[...document.querySelectorAll('#grid .app span')].map(s => s.textContent).join()`) === 'Vindu', 'the shell opens on its grid: Desktop, with its icon and name');
     check(await sh<boolean>(`typeof window.desktop === 'undefined'`) && await fetch(a.url.replace(/\/[\w-]+\/$/, '/not-the-token/')).then(r => r.status) === 404, 'the shell\'s page is its own, only with its token');
     [page] = await Promise.all([context.waitForEvent('page'), shellPage.click(tile('desktop'))]);
     watch(page);
@@ -90,9 +85,8 @@ await (async () => {
     await until(() => sh<boolean>(`!!document.querySelector('${codex}')`), 'the shell\'s Processors');
     const picker = shellPage.locator('#grants tr[data-app="desktop"] input[data-processor]');
     check((await shellPage.locator('#list .proc b').allTextContents()).join(',') === 'Claude Code,Codex'
-      && await picker.count() === 2 && await picker.evaluateAll(inputs => inputs.every(input => (input as HTMLInputElement).checked))
-      && await shellPage.locator('#grants tr[data-app="other-app"] input[data-processor]').count() === 0,
-      'the registered processors are selected for Desktop; the app with its own processors gets no grant controls');
+      && await picker.count() === 2 && await picker.evaluateAll(inputs => inputs.every(input => (input as HTMLInputElement).checked)),
+      'the registered processors are selected for Desktop');
     await shellPage.click(codex);
     await until(async () => await harnesses() === 'claude', 'Codex gone from Desktop\'s picker');
     const unpicked = await js<string>(`desktop.create({ id: 'no-pick', harness: 'claude', folder: ${JSON.stringify(work)} }).then(() => 'started', e => String(e.message))`);
@@ -103,16 +97,9 @@ await (async () => {
     await shellPage.click(codex);
     await until(async () => await harnesses() === 'claude,codex', 'Codex back in Desktop\'s picker');
     check(true, 'tick it again: Codex is back in Desktop\'s picker, at once');
-    // another app: its own server, started on the first click, in a tab of its own
-    await shellPage.click('#home');
-    const [otherApp] = await Promise.all([context.waitForEvent('page'), shellPage.click(tile('other-app'))]);
-    await otherApp.waitForURL(/^http:\/\/localhost:\d+\/[\w-]{20,}\/$/, { timeout: 30_000 });
-    check(await otherApp.textContent('h1') === 'Other App (synthetic)' && new URL(otherApp.url()).origin !== new URL(a.url).origin, 'the other app: its server started by the shell on the first click, its page in a tab of its own');
-    check(new URL(otherApp.url()).pathname === `/${keptToken(path.join(userData, 'pages.json'), 'app:other-app')}/` && (await fetch(new URL('/', otherApp.url()))).status === 404,
-      'its page is at the token the shell gave it, kept with the shell\'s own, and not without it');
     // as web apps, in full Chromium with a profile of its own, as the person's browser is (its headless shell says nothing
     // stands in the way of any page): the shell's page and Desktop's install, each opening at its token's address; a page
-    // with no manifest (the other app's) does not
+    // with no manifest (the test's ledger) does not
     const profile = tmp('profile-'), installs = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true });
     try {
       const asApp = async (url: string) => {
@@ -123,12 +110,11 @@ await (async () => {
         const data = (m.data ? JSON.parse(m.data) : {}) as { name?: string; start_url?: string };
         return { name: data.name, start: data.start_url && new URL(data.start_url, m.url).href, errors: [...m.errors.map(e => e.message), ...installabilityErrors.map(e => e.errorId)] };
       };
-      const shellApp = await asApp(a.url), desktopApp = await asApp(a.desktop.url), none = await asApp(otherApp.url());
+      const shellApp = await asApp(a.url), desktopApp = await asApp(a.desktop.url), none = await asApp(base);
       check(shellApp.name === 'vindu' && shellApp.start === a.url && !shellApp.errors.length && desktopApp.name === 'Vindu' && desktopApp.start === a.desktop.url && !desktopApp.errors.length,
         'the shell\'s page and Desktop\'s install as web apps: nothing in the way, a manifest each from its name and icon, opening at its token\'s address');
-      check(none.errors.includes('no-manifest'), 'a page with no manifest does not (the other app\'s)');
+      check(none.errors.includes('no-manifest'), 'a page with no manifest does not (the test\'s ledger)');
     } finally { await installs.close(); fs.rmSync(profile, { recursive: true, force: true }); }
-    await otherApp.close();
     await page.bringToFront();
     await until(() => js<boolean>('!!document.getElementById("place")'), 'the window');
     await until(() => js<boolean>(`!document.getElementById('connectors').hidden`), 'the connectors by the prompt');

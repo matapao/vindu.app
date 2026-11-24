@@ -28,12 +28,10 @@ type Listed = { name: string; live: boolean; casting: boolean };
 
 /** The core "elsewhere": the test's own core, started by the test, at its own port and in its own folder. */
 const otherData = tmp('frame-elsewhere-core-');
-fs.writeFileSync(path.join(otherData, 'settings.json'), JSON.stringify({ installed: [] }));
 let other: ChildProcess | undefined = spawn(process.execPath, [path.join(import.meta.dirname, 'core.js')], { env: { ...process.env, VINDU_PORT: String(ELSEWHERE_PORT), VINDU_USER_DATA: otherData }, stdio: ['ignore', 'pipe', 'inherit'] });
 const inspect = await until(() => { try { return (JSON.parse(fs.readFileSync(path.join(otherData, 'test-core.json'), 'utf8')) as { inspect: string }).inspect; } catch { return undefined; } }, 'the core elsewhere');
 const ask = async <T>(p: string) => (await (await fetch(`${inspect}${p}`)).json()) as T;
 const data = tmp('frame-here-core-'), frameData = tmp('frame-elsewhere-app-');
-fs.writeFileSync(path.join(data, 'settings.json'), JSON.stringify({ installed: [] }));
 const env = launchEnv({ VINDU_PORT: String(HERE_PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_CORE: path.join(import.meta.dirname, 'core.js'), VINDU_FRAME_SECRETS: 'memory' });
 
 let code = 1, app: ElectronApplication | undefined;

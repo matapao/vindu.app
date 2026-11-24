@@ -1,30 +1,24 @@
 import { connectorTools, type ConnectorSpec } from './connectors.js';
 import { withKeys } from './keyrefs.js';
-import type { AppAccess } from './app-endpoint.js';
 import { APP } from './desktop-settings.js';
 import type { DesktopHost } from './desktop-host.js';
 import type { TaskSetup, TaskRouter } from './task.js';
 
 type ToolScope = {
-  owner: AppAccess;
   cwd: string;
   harness: string;
-  detached: boolean;
   readsOnly: boolean;
   chosen: ConnectorSpec[];
   router: TaskRouter;
   signal: AbortSignal;
 };
 
-/** Each invocation rechecks the current app grants, including reads requested by live view sources. */
+/** Each invocation rechecks that the connector is still set up, including reads requested by live view sources. */
 export async function bindTaskTools(host: DesktopHost, scope: ToolScope) {
-  const { celler, currentAccess } = host;
+  const { celler } = host;
   const { keyOf, keyNamed } = host.connectors;
-  const { owner, cwd, harness, detached, readsOnly, chosen, signal, router } = scope;
-  const mayRun = () => detached || !!currentAccess(owner)?.asks.includes('processors');
-  const mayUse = (name: string) => !!currentAccess(owner)?.asks.includes('connectors')
-    && (owner.id === APP.id || celler.grants(owner.id).includes(`connector:${name}`))
-    && host.connectors.availableConnectors().connectors.some(connector => connector.name === name);
+  const { cwd, harness, readsOnly, chosen, signal, router } = scope;
+  const mayUse = (name: string) => host.connectors.availableConnectors().connectors.some(connector => connector.name === name);
   const tools = await connectorTools(chosen, {
     signal, mayUse,
     key: keyOf, readsOnly,
@@ -37,7 +31,7 @@ export async function bindTaskTools(host: DesktopHost, scope: ToolScope) {
     if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Expected named tool arguments');
     let entry: string | undefined;
     const result = await celler.callTool({
-      owner: owner.id, processor: harness, cwd, node, adapters: tools.adapters, mayUse, mayRun,
+      owner: APP.id, processor: harness, cwd, node, adapters: tools.adapters, mayUse,
       signal: signal ? AbortSignal.any([signal, scope.signal]) : scope.signal,
       input: args as Record<string, unknown>, ask: readOnly ? undefined : (question, signal) => router.ask?.(question, signal) ?? Promise.resolve(null),
       observed: output => { entry = router.observe?.(output); },

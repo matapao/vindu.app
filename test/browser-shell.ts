@@ -2,7 +2,8 @@
 // Tailscale of the test's own (its command line, which changes nothing): at a phone's width an app opens in a tab of the
 // shell's own, its page in a frame there, which Desktop's page allows the shell and no other page; the grid is a tap away,
 // and the app's tab stays, its page as it was. On the computer, Phone
-// says where Tailscale is, puts the core on the tailnet when the person says, and makes a code to pair a device with.
+// says where Tailscale is, puts the core on the tailnet when the person says, and makes a code to pair a device with;
+// Processors shows what Desktop may use and its day's budget; and what needs the person reaches the shell there.
 // Not part of npm test: it needs that Chromium.   node dist/test/browser-shell.js
 import fs from 'node:fs';
 import { processors } from './consumer.js';
@@ -28,11 +29,7 @@ if (a[0] === 'status') { console.log(JSON.stringify({ BackendState: 'Running', S
 if (a[0] === 'serve' && a[1] === 'status') { console.log('{}'); process.exit(0); }
 process.exit(a[0] === 'serve' ? 0 : 1);
 `, { mode: 0o755 });
-  // An app of the grid that asks for processors.
-  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'shell-data-')), appDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shell-app-'));
-  fs.writeFileSync(path.join(appDir, 'app.json'), JSON.stringify({ id: 'arcade', name: 'Arcade', icon: 'icon.svg', asks: ['processors'], serve: { command: 'node', args: ['-e', ''] } }));
-  fs.writeFileSync(path.join(appDir, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>');
-  fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ installed: [appDir] }));
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'shell-data-'));
   const a = await startApp({ userData, home: dir, port: 17720, processors, tailscale: cli });
   const browser = await chromium.launch({ headless: true });
   try {
@@ -85,33 +82,29 @@ process.exit(a[0] === 'serve' ? 0 : 1);
     // installed: a picture for Safari's Home Screen and Dock, and pictures in the manifest beside the drawing
     const touch = await fetch(`${a.url}apple-touch-icon`); const m = await (await fetch(`${a.url}manifest.webmanifest`)).json() as { icons: { src: string; sizes: string; type: string }[] };
     check(touch.ok && touch.headers.get('content-type') === 'image/png' && m.icons.some(i => i.sizes === '512x512' && i.type === 'image/png') && m.icons.some(i => i.type === 'image/svg+xml'), 'installed, it has a picture for Safari\'s Home Screen and the manifest\'s sizes, beside its drawing');
-    // Processors, on the computer: what each app may use, and its day's budget
+    // Processors, on the computer: what Desktop may use, and its day's budget
     await pc.click('#procs');
-    await until(() => pc.locator('#grants tr[data-app="arcade"]').count(), 'Processors');
-    check(await pc.locator('#grants tr[data-app="desktop"] input[data-processor="claude"]').isChecked() && !(await pc.locator('#grants tr[data-app="arcade"] input[data-processor="claude"]').isChecked()), 'Desktop has the harnesses; an app has none until the person ticks them');
+    await until(() => pc.locator('#grants tr[data-app="desktop"]').count(), 'Processors');
+    check(await pc.locator('#grants tr[data-app="desktop"] input[data-processor="claude"]').isChecked() && await pc.locator('#grants tr[data-app="desktop"] input[data-processor="codex"]').isChecked(), 'Desktop has the registered harnesses');
     check((await pc.locator('#list .proc b').allTextContents()).includes('Codex'), 'the processor list shows the registered name');
-    await pc.check('#grants tr[data-app="arcade"] input[data-processor="codex"]');
-    await until(() => a.celler.grants('arcade').includes('codex'), 'Codex granted through Celler');
-    check(true, 'the person grants a processor to a folder app in Processors');
-    await until(() => pc.locator('#budgets tr[data-app="arcade"] input[data-limit="tokens"]').count(), 'the budgets');
-    check((await pc.locator('#budgets tr[data-app="desktop"] td[data-spent]').innerText()).startsWith('0 tokens'), 'each app\'s day, Desktop\'s included: nothing held back until the person sets it');
-    await pc.fill('#budgets tr[data-app="arcade"] input[data-limit="tokens"]', '20000'); await pc.press('#budgets tr[data-app="arcade"] input[data-limit="tokens"]', 'Enter');
-    await until(() => a.celler.budget('arcade').tokens === 20000, 'the budget kept');
-    check(await pc.locator('#budgets tr[data-app="arcade"] input[data-limit="tokens"]').inputValue() === '20000', 'the person sets an app\'s day under Processors');
-    // what an app's notice says reaches the shell on the computer
-    const { CELLER_URL, CELLER_TOKEN } = a.appAccess('arcade');
-    const notified = await fetch(`${CELLER_URL}/notify`, { method: 'POST',
-      headers: { authorization: `Bearer ${CELLER_TOKEN}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'A game is ready', body: 'Boat Race, version 3' }) });
-    check(notified.ok, 'the app reports its notice through its authenticated endpoint');
-    await until(async () => (await pc.locator('#note').innerText()).includes('A game is ready'), 'the notice in the shell');
-    check(true, 'an app\'s notice reaches the shell on the computer, under the app\'s name');
+    const tokens = '#budgets tr[data-app="desktop"] input[data-limit="tokens"]';
+    await until(() => pc.locator(tokens).count(), 'the budgets');
+    check((await pc.locator('#budgets tr[data-app="desktop"] td[data-spent]').innerText()).startsWith('0 tokens'), 'Desktop\'s day: nothing held back until the person sets it');
+    await pc.fill(tokens, '20000'); await pc.press(tokens, 'Enter');
+    await until(() => a.celler.budget('desktop').tokens === 20000, 'the budget kept');
+    check(await pc.locator(tokens).inputValue() === '20000', 'the person sets Desktop\'s day under Processors');
+    // what needs the person while no page of Desktop's is open: the shell on the computer says it, under Desktop's name
+    await phone.close();
+    await until(() => a.desktop.clients() === 0, 'no page of Desktop\'s open');
+    a.notify('no-task', { what: 'Water the plants', state: 'due' } as never);
+    await until(async () => (await pc.locator('#note').innerText()).includes('Water the plants'), 'the notice in the shell');
+    check((await pc.locator('#note').innerText()).startsWith('Vindu: Reminder'), 'Desktop\'s notice reaches the shell on the computer, under its name');
     check(!problems.length, `no errors in the shell${problems.length ? `: ${problems.join(' | ')}` : ''}`);
     code = 0;
   } finally {
     await browser.close();
     await a.close();
-    for (const folder of [dir, userData, appDir]) fs.rmSync(folder, { recursive: true, force: true });
+    for (const folder of [dir, userData]) fs.rmSync(folder, { recursive: true, force: true });
   }
   console.log(`# ${passed} passed`);
   process.exit(code);

@@ -3,7 +3,6 @@
 // sent on), handing each request to vindu as the task's origin, and closed with the task. Synthetic only.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { createHash, randomBytes } from 'node:crypto';
 import http from 'node:http';
 import { pageDoors } from '../src/page-doors.js';
 
@@ -12,17 +11,7 @@ async function standIn() {
   const seen: { host?: string; url?: string; cookie?: string }[] = [];
   const server = http.createServer((req, res) => {
     seen.push({ host: req.headers.host, url: req.url, cookie: req.headers.cookie });
-    if (req.url === '/notes/') {
-      const { port } = server.address() as { port: number };
-      res.writeHead(302, { location: `http://localhost:${port}/notes/inbox`, 'set-cookie': ['app-session=note; Path=/notes/; Domain=mini.local', 'vindu-door-other=ignored'] }).end(); return;
-    }
-    res.writeHead(200, { 'Content-Type': 'text/plain', 'Content-Security-Policy': "default-src 'self'" }).end(`page at ${req.headers.host}${req.url}`);
-  });
-  server.on('upgrade', (req, socket) => {
-    seen.push({ host: req.headers.host, url: req.url, cookie: req.headers.cookie });
-    const accept = createHash('sha1').update(req.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
-    socket.write(`HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: ${accept}\r\nSet-Cookie: extra=ignored\r\n\r\n`);
-    socket.on('end', () => socket.end());
+    res.writeHead(200, { 'Content-Type': 'text/plain', 'Content-Security-Policy': "default-src 'self'", 'Set-Cookie': 'session=page-host' }).end(`page at ${req.headers.host}${req.url}`);
   });
   await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
   return { port: (server.address() as { port: number }).port, seen, close: () => new Promise<void>(r => { server.close(() => r()); server.closeAllConnections(); }) };
@@ -66,6 +55,7 @@ test('a door per origin: told to a device elsewhere, opened by its key alone, to
     const page = await ask(port, '/view/a.html?v=2', { host: wifi, cookie: `other=1; ${taskCookie}` });
     assert.equal(page.status, 200); assert.equal(page.body, `page at ${key}.localhost:${host.port}/view/a.html?v=2`);
     assert.equal(host.seen.at(-1)?.cookie, undefined); assert.equal(page.headers['content-security-policy'], "default-src 'self'");
+    assert.equal(page.headers['set-cookie'], undefined, 'no cookie of the page host reaches the device');
     // without it, with a key not made here, another device's, by this computer's own name, or by a name it has not: nothing
     assert.equal((await ask(port, '/view/a.html', { host: wifi })).status, 403);
     assert.equal((await ask(port, '/view/a.html', { host: wifi, cookie: `vindu-door-${key}=d1.${'x'.repeat(43)}` })).status, 403);
@@ -73,49 +63,11 @@ test('a door per origin: told to a device elsewhere, opened by its key alone, to
     assert.equal((await ask(port, '/view/a.html', { host: `localhost:${port}`, cookie: taskCookie })).status, 421);
     assert.equal((await ask(port, '/view/a.html', { host: `127.0.0.1:${port}`, cookie: taskCookie })).status, 421);
     assert.equal((await ask(port, '/view/a.html', { host: `evil.example:${port}`, cookie: taskCookie })).status, 421);
-    const via = { host: 'mini.local:7301', device: 'd1', secure: true };
-    const folder = new URL(await doors.folder('notes', new URL(`http://localhost:${host.port}/notes/`), via));
-    assert.equal(folder.pathname, '/app/');
-    const folderPort = Number(folder.port);
-    const folderEntry = await ask(folderPort, folder.pathname + folder.search, { host: folder.host });
-    assert.equal(folderEntry.status, 302);
-    const folderCookie = String(folderEntry.headers['set-cookie']).split(';')[0];
-    assert.equal((await ask(folderPort, folder.pathname, { host: folder.host, cookie: taskCookie })).status, 403);
-    assert.equal((await ask(folderPort, folder.pathname + '?vindu-door=' + m[2], { host: folder.host })).status, 403);
-    const redirected = await ask(folderPort, folder.pathname, { host: folder.host, cookie: `${taskCookie}; ${folderCookie}; unrelated=session` });
-    assert.equal(redirected.status, 302);
-    assert.equal(redirected.headers.location, '/app/inbox');
-    assert.equal(host.seen.at(-1)?.cookie, undefined);
-    assert.equal(host.seen.at(-1)?.url, '/notes/');
-    const set = redirected.headers['set-cookie'] ?? [];
-    assert.equal(set.length, 1);
-    assert.match(set[0], /^vindu-app-[\w-]+-app-session=note; HttpOnly; Path=\/app\/; Secure$/);
-    const appCookie = set[0].split(';')[0], all = [folderCookie, taskCookie, appCookie, 'unrelated=session'].join('; ');
-    assert.equal((await ask(folderPort, '/app/inbox', { host: folder.host, cookie: all })).status, 200);
-    assert.equal(host.seen.at(-1)?.cookie, 'app-session=note');
-    const upgraded = await new Promise<{ socket: import('node:net').Socket; headers: http.IncomingHttpHeaders }>((resolve, reject) => {
-      const request = http.request({ host: '127.0.0.1', port: folderPort, path: '/app/events', headers: {
-        host: folder.host, origin: folder.origin, cookie: all, upgrade: 'websocket', connection: 'Upgrade',
-        'sec-websocket-version': '13', 'sec-websocket-key': randomBytes(16).toString('base64'),
-      } });
-      request.on('upgrade', (reply, socket) => resolve({ socket, headers: reply.headers }));
-      request.on('response', reply => { reply.resume(); reject(new Error(`Upgrade returned ${reply.statusCode}`)); });
-      request.on('error', reject); request.end();
-    });
-    assert.equal(upgraded.headers['set-cookie'], undefined);
-    assert.equal(host.seen.at(-1)?.cookie, 'app-session=note');
-    assert.equal(host.seen.at(-1)?.url, '/notes/events');
-    const disconnected = new Promise<void>(resolve => { upgraded.socket.once('close', () => resolve()); upgraded.socket.resume(); });
-    doors.revokeDevice('d1'); await disconnected;
-    devices = [];
-    assert.equal((await ask(folderPort, folder.pathname, { host: folder.host, cookie: folderCookie })).status, 403);
-    assert.equal((await ask(folderPort, folder.pathname + folder.search, { host: folder.host })).status, 403);
-    await doors.stopFolder('notes');
     // the device removed: its key opens nothing
     devices = []; assert.equal((await ask(port, '/view/a.html', { host: wifi, cookie: taskCookie })).status, 403); devices = ['d1'];
     // the task closed: its door with it, and the core told
     doors.note('t1', view); await doors.release('t1');
-    assert.deepEqual(doors.ports(), []); assert.equal(changes, 4);
+    assert.deepEqual(doors.ports(), []); assert.equal(changes, 2);
     await assert.rejects(ask(port, '/view/a.html', { host: wifi, cookie: taskCookie }));
   } finally { doors.close(); await host.close(); }
 });

@@ -34,17 +34,12 @@ export function openCellerHost(directory: string) {
   // These tables are the host's policy inputs and spending counters. Celler owns its graph, active grants, run audit and approvals.
   db.exec(`
     CREATE TABLE IF NOT EXISTS vindu_apps (id TEXT PRIMARY KEY, grants TEXT NOT NULL, budget TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS vindu_installations (id TEXT PRIMARY KEY, folder TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS vindu_usage (id TEXT PRIMARY KEY, app TEXT NOT NULL, started INTEGER NOT NULL,
       ended INTEGER, tokens REAL NOT NULL DEFAULT 0, cost REAL NOT NULL DEFAULT 0);
     CREATE INDEX IF NOT EXISTS vindu_usage_day ON vindu_usage(app,started);
   `);
   const registered = db.prepare('SELECT grants,budget FROM vindu_apps WHERE id = ?');
   const make = db.prepare('INSERT OR IGNORE INTO vindu_apps VALUES (?,?,?)');
-  // Existing policy or storage predates the path binding. Only an explicit local choice may claim it.
-  const bind = db.prepare(`INSERT OR IGNORE INTO vindu_installations (id,folder)
-    SELECT :owner, :folder WHERE :restore OR (NOT :hasStorage AND NOT EXISTS (SELECT 1 FROM vindu_apps WHERE id = :owner))`);
-  const installation = db.prepare('SELECT folder FROM vindu_installations WHERE id = ?');
   const setGrants = db.prepare('UPDATE vindu_apps SET grants = ? WHERE id = ?');
   const setBudget = db.prepare('UPDATE vindu_apps SET budget = ? WHERE id = ?');
   const startUsage = db.prepare('INSERT INTO vindu_usage (id,app,started) VALUES (?,?,?)');
@@ -179,11 +174,6 @@ export function openCellerHost(directory: string) {
 
   return {
     register(owner: string, defaults: string[] = []) { make.run(owner, JSON.stringify(defaults), JSON.stringify(ZERO)); },
-    registerFolder(owner: string, canonicalFolder: string, legacy: { hasStorage: boolean; restore: boolean }) {
-      bind.run({ owner, folder: canonicalFolder, restore: Number(legacy.restore), hasStorage: Number(legacy.hasStorage) });
-      if (installation.get(owner)?.folder !== canonicalFolder) return false;
-      make.run(owner, '[]', JSON.stringify(ZERO)); return true;
-    },
     grants, grant(owner: string, id: string, enabled: boolean) {
       const current = new Set(grants(owner));
       if (enabled) current.add(id); else current.delete(id);

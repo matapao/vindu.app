@@ -80,8 +80,6 @@
     .chip.up::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--line); vertical-align: 1px; }
     .app[data-running="true"] .chip.up::before { background: var(--good); box-shadow: 0 0 0 3px rgb(48 164 108 / 22%); }
     .chip.none { color: var(--warn); }
-    #none { max-width: 560px; padding: 24px 26px; border: 1px dashed var(--line); border-radius: 18px; color: var(--ink-2); }
-    #none b { display: block; margin-bottom: 6px; color: var(--ink); font-size: 15px; }
     /* a paired phone's first look: how to keep vindu on its Home Screen */
     #welcome { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; align-items: start; max-width: 560px; margin: 0 0 24px; padding: 16px; border-radius: 18px; background: var(--pane); border: 1px solid var(--line); }
     #welcome img { grid-row: 1 / span 3; width: 44px; height: 44px; border-radius: 11px; }
@@ -177,7 +175,6 @@
       .logo { width: var(--icon); height: var(--icon); border-radius: calc(var(--icon) * 0.235); box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--tint) 70%, transparent), inset 0 0 0 1px light-dark(rgb(0 0 0 / 6%), rgb(255 255 255 / 9%)); }
       .app span { max-width: 100%; font-size: 12px; line-height: 1.25; font-weight: 500; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
       .app[data-running="true"] .logo::after { content: ""; position: absolute; right: -2px; top: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--good); border: 2px solid var(--desk); }
-      #none { padding: 20px; border-radius: 16px; }
       #welcome { margin-bottom: 26px; }
 
       /* sheets: from the bottom, over the home, dimmed behind */
@@ -279,7 +276,6 @@
       <button id="welcome-done" type="button">Done</button>
     </section>
     <div id="grid"></div>
-    <div id="none" hidden><b>No apps here yet</b>An app is a folder with an app.json: its name, its logo, a line about it, and the command that serves its page. The core shows each folder its settings list under "installed".</div>
   </main>
   <div id="scrim" hidden></div>
   <section id="processors" class="sheet" hidden aria-labelledby="processors-title">

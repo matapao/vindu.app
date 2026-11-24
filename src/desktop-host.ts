@@ -5,7 +5,6 @@ import { chromium, type Browser } from 'playwright-core';
 import { startVindu } from '@matapao/vindu/server';
 import { playwrightDriver } from '@matapao/vindu/playwright';
 import { openCellerHost } from './celler-host.js';
-import type { appEndpoint, AppAccess } from './app-endpoint.js';
 import { appDataDir, locale } from './os.js';
 import { startNetwork, type Network } from './network.js';
 import { frameLinks, linkOver } from './frame-link.js';
@@ -60,11 +59,8 @@ export async function openDesktopHost(o: AppOptions) {
   // New workspaces grant the processors registered by the consuming app; existing policy stays in force.
   const hasLegacyPolicy = fs.existsSync(path.join(userData, 'senter'));
   celler.register(APP.id, hasLegacyPolicy ? [] : processors.map(harness => harness.id));
-  const access = new Map<string, AppAccess>([[APP.id, APP]]);
-  const grants = (): Record<string, string[]> => Object.fromEntries([...access.keys()].map(id => [id, celler.grants(id)]));
   const granted = () => processors.filter(h => celler.grants(APP.id).includes(h.id));
   const harnessName = (h: string) => processors.find(x => x.id === h)?.name ?? h;
-  let endpoint: Awaited<ReturnType<typeof appEndpoint>> | undefined;
   // the core's network side (network.ts): its pages on the person's tailnet once they turn it on, and the devices paired
   let network: Network | undefined;
   let shellAt = o.port ?? 7300; // the shell's port, once it listens (another, when that one is taken)
@@ -90,11 +86,9 @@ export async function openDesktopHost(o: AppOptions) {
     away: (via, v) => doors.through(via, v),
     routes: (req, res, rest) => attachments.dropped(req, res, rest, desktop.origin) });
   const send = (channel: string, ...a: unknown[]) => { desktop.send(channel, ...a); };
-  const appShell = await startShell({ token: keptToken(tokens, 'shell'), port: o.port ?? 7300, log: shellLog, logDir: () => path.join(userData, 'apps'),
+  const appShell = await startShell({ token: keptToken(tokens, 'shell'), port: o.port ?? 7300, log: shellLog,
     names: () => network?.names() ?? [], lan: () => network?.lan() ?? [], devices: t => network?.devices.of(t)?.id, owner: d => network?.devices.owner(d) ?? false, open: (req, res, rest, origin) => network?.pairPage(req, res, rest, origin) ?? false,
     links: (device, ch) => { links.add(linkOver(ch)); shellLog({ link: device }); },
-    remoteFolder: (id, local, via) => doors.folder(id, local, via),
-    stopped: id => { void doors.stopFolder(id).catch(error => shellLog({ app: id, error: String(error) })); },
     // the person's own commands here (main.ts --pair, --tailnet, --lan, --status), as Phone gives them, where no one
     // opens the shell on this computer (a Pi's): a code to pair a device with, and the core on their tailnet or their
     // Wi-Fi, or off them
@@ -109,37 +103,14 @@ export async function openDesktopHost(o: AppOptions) {
       if (q.do === 'state') { const { code: _c, push: _p, ...s } = await network!.state(); return { ...s, apps: appShell.apps().map(a => a.name) }; }
       throw new Error(`no command "${String(q.do)}": code, tailnet, lan or state`);
     },
-    own: () => [{ ...APP, icon: ICON, processors: 'granted', url: desktop.url, about: 'Tasks with an agent, in views, pages and terminals you share with it', color: '#2a78d6' }],
-    // other apps: the settings' folders, each with its app.json
-    folders: () => (readSettings().installed ?? []).map(f => (f === '~' || f.startsWith('~/') ? path.join(home, f.slice(1)) : f)).filter(f => fs.existsSync(path.join(f, 'app.json'))),
-    held: app => {
-      const hasStorage = !!fs.lstatSync(path.join(userData, 'apps', app.id, 'storage'), { throwIfNoEntry: false });
-      const restore = readSettings().restoreFolderAccess?.[app.id] === app.folder;
-      if (!celler.registerFolder(app.id, app.folder, { hasStorage, restore })) return false;
-      const asks = app.asks.filter(ask => ['processors', 'connectors', 'storage'].includes(ask));
-      const registration = { ...app, asks };
-      access.set(app.id, registration);
-      endpoint?.register(registration);
-      return true;
-    },
-    tokenOf: id => keptToken(tokens, `app:${id}`),
-    // SHELL_ORIGINS is the name apps read; VINDU_SHELL stays for apps that still read it.
-    door: app => {
-      const shell = shellOrigins().join(' ');
-      return { ...endpoint?.env(app.id), SHELL_ORIGINS: shell, VINDU_SHELL: shell };
-    },
+    own: () => [{ ...APP, icon: ICON, url: desktop.url, about: 'Tasks with an agent, in views, pages and terminals you share with it', color: '#2a78d6' }],
     connectors: () => availableConnectors().connectors.map(c => ({ id: `connector:${c.name}`, name: c.title })),
     processors: () => processors.map(h => ({ ...h, kind: 'harness', where: [], models: [] })),
-    grants,
-    grant: (id, permission, on) => {
-      const target = access.get(id);
-      const connector = permission.startsWith('connector:');
-      const supported = connector
-        ? availableConnectors().connectors.some(c => `connector:${c.name}` === permission)
-        : processors.some(h => h.id === permission);
-      if (!target?.asks.includes(connector ? 'connectors' : 'processors') || !supported) throw new Error(`No access to "${permission}" for that app`);
-      celler.grant(id, permission, on);
-      if (id === APP.id) send('processors', granted());
+    grants: () => ({ [APP.id]: celler.grants(APP.id) }),
+    grant: (id, processor, on) => {
+      if (id !== APP.id || !processors.some(h => h.id === processor)) throw new Error(`No access to "${processor}" for that app`);
+      celler.grant(id, processor, on);
+      send('processors', granted());
     },
   });
   shellAt = appShell.page.port;
@@ -153,16 +124,12 @@ export async function openDesktopHost(o: AppOptions) {
     if (!harness) throw new Error('Choose an available processor.');
     return harness.id;
   };
-  const currentAccess = (owner: AppAccess): AppAccess | undefined => {
-    if (owner.id === APP.id) return APP;
-    const current = appShell.apps().find(app => app.id === owner.id && app.folder === owner.folder);
-    return current ? access.get(current.id) : undefined;
-  };
-  const ensureProcessor = (owner: AppAccess, harness: string) => {
-    if (!currentAccess(owner)?.asks.includes('processors') || !celler.grants(owner.id).includes(harness)) {
-      throw new Error(`${harnessName(harness)} is not one of ${owner.name}'s processors: check Processors in the shell`);
+  /** A turn of Desktop's runs only on a processor ticked for it under Processors, and within its day's budget. */
+  const ensureProcessor = (harness: string) => {
+    if (!celler.grants(APP.id).includes(harness)) {
+      throw new Error(`${harnessName(harness)} is not one of ${APP.name}'s processors: check Processors in the shell`);
     }
-    const reason = celler.over(owner.id);
+    const reason = celler.over(APP.id);
     if (reason) throw new Error(reason);
   };
   const budgetOf = (app: string) => {
@@ -188,11 +155,6 @@ export async function openDesktopHost(o: AppOptions) {
   appShell.page.handle('shell:device', e => { const d = e.sender.via?.device; if (!d) return null; network!.devices.seen(d); const x = network!.devices.list().find(y => y.id === d); return x ? { name: x.name, push: x.push, key: network!.pushKey() } : null; });
   appShell.page.handle('shell:push', (e, sub: unknown) => { const d = e.sender.via?.device; if (!d) throw new Error('notifications are for a paired device'); return network!.subscribe(d, sub); });
 
-  function register(endpointForApps: NonNullable<typeof endpoint>) {
-    endpoint = endpointForApps;
-    for (const app of access.values()) endpoint.register(app);
-  }
-
   async function close() {
     await uiProvider.close();
     await checker?.then(browser => browser.close()).catch(() => undefined);
@@ -202,7 +164,6 @@ export async function openDesktopHost(o: AppOptions) {
     await celler.close();
   }
 
-  return { userData, home, options: o, tasksFolder, readSettings, tilde, processors, granted, ensureProcessor, currentAccess,
-    harnessOf, budgetOf, register, celler, connectors, desktop, appShell, network, links, doors, uiProvider,
-    attachments, send, close };
+  return { userData, home, options: o, tasksFolder, readSettings, tilde, granted, ensureProcessor, harnessOf,
+    celler, connectors, desktop, appShell, network, links, doors, uiProvider, attachments, send, close };
 }

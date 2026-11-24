@@ -2,7 +2,6 @@ import path from 'node:path';
 import type { Reminder } from '@matapao/vindu/server';
 import { APP } from './desktop-settings.js';
 import type { DesktopHost } from './desktop-host.js';
-import type { AppAccess } from './app-endpoint.js';
 import type { OpenTask, TaskRouter } from './task.js';
 import { TaskCheckpoints, type Opening, type ThreadItem } from './task-checkpoint.js';
 import { arrange, stateOf, notifies, type Activity, type ActState } from './activity.js';
@@ -18,7 +17,7 @@ export function taskActivity(host: DesktopHost) {
   const latest = new Map<string, { views: Map<string, unknown>; state?: unknown }>();
   const seen = (task: string) => { let l = latest.get(task); if (!l) latest.set(task, l = { views: new Map() }); return l; };
   const startedWith = new Map<string, string>(); // task → its template's file
-  const opened = new Map<string, { q: Opening; cwd: string; owner: AppAccess; readsOnly: boolean }>();
+  const opened = new Map<string, { q: Opening; cwd: string; readsOnly: boolean }>();
   const need = (id: string) => { const t = tasks.get(id); if (!t) throw new Error(`no task ${id}`); return t; };
   let front: string | undefined;
   let seeing = { visible: false, focused: false }, screens: { width: number; height: number; scale: number } | undefined;
@@ -50,8 +49,8 @@ export function taskActivity(host: DesktopHost) {
     clearTimeout(saves.get(id)); saves.delete(id);
     const activity = acts.get(id), task = tasks.get(id), opening = opened.get(id);
     if (!activity || !task || !opening) return;
-    const { cwd, owner, q, readsOnly } = opening;
-    checkpoints.save(id, { version: 1, cwd, owner: { id: owner.id, folder: owner.folder }, opening: q, readsOnly,
+    const { cwd, q, readsOnly } = opening;
+    checkpoints.save(id, { version: 1, cwd, owner: { id: APP.id }, opening: q, readsOnly,
       activity, named: named.has(id), view: task.checkpoint(), thread: threads.get(id) ?? [] });
   };
   const scheduleSave = (id: string) => {

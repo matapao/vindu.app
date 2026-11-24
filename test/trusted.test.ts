@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const TRUSTED = ['web', 'socket-messages', 'page-credentials', 'request-target', 'lan-tls', 'page-doors', 'remote', 'phone-transfer', 'shell', 'devices', 'push', 'tailnet', 'network', 'service', 'secrets', 'keyrefs', 'frame-link', 'app-endpoint'];
+const TRUSTED = ['web', 'socket-messages', 'page-credentials', 'request-target', 'lan-tls', 'page-doors', 'remote', 'phone-transfer', 'shell', 'devices', 'push', 'tailnet', 'network', 'service', 'secrets', 'keyrefs', 'frame-link'];
 const LINES = 2000; // the whole of it: past this, something in it belongs outside it
 const BUILT = path.join(import.meta.dirname, '..', 'src'), SOURCE = path.join(import.meta.dirname, '..', '..', 'src');
 

@@ -1,6 +1,6 @@
 // The shell's page: its bar, the apps' grid, Processors and Phone. Everything it shows is set as text, never as markup.
-// The grid is a card for each app: its logo (its own, from its app.json; or its initials on its colour when it has none to
-// show), its name and its line, whether its page is up, and the harnesses ticked for it; on a phone, a home screen of logos.
+// The grid is a card for each app: its logo (its own; or its initials on its colour when it has none to show), its name
+// and its line, whether its page is up, and the harnesses ticked for it; on a phone, a home screen of logos.
 // In the desktop app's window, and where there are no tabs (installed, as on a phone's Home Screen, or a narrow window),
 // an app opens here: a tab of its own in the bar, its page in a frame under it, kept as it is while another app is in
 // front, and popped out to a window of its own when the person wants it beside another. An app whose page lets no frame
@@ -17,8 +17,7 @@
 // The first time a paired phone opens vindu in its browser, the home says how to keep it on the Home Screen.
 import { connect } from './socket.js';
 
-type App = { id: string; name: string; icon: string; processors: 'granted' | 'own'; connectors?: 'granted' | 'none' | 'per-task'; folder?: boolean;
-  about?: string; color?: string; running?: boolean; uses?: string[] };
+type App = { id: string; name: string; icon: string; about?: string; color?: string; running?: boolean; uses?: string[] };
 type Processor = { id: string; name: string; kind?: 'harness' | 'model'; where: string[]; models: string[]; note?: string; harness?: string; model?: string; endpoint?: string; key?: 'set' | 'missing' };
 type Connector = { id: string; name: string };
 type Grants = Record<string, string[]>;
@@ -107,7 +106,7 @@ function open(a: App) {
   void shell.invoke('shell:open', a.id).then((url: string) => { tab.location.href = url; }, (e: Error) => { tab.close(); note(`${a.name} did not open: ${e.message}`); });
 }
 
-/** An app's colour: its own (app.json's color), or one its id gives it, the same each time. */
+/** An app's colour: its own, or one its id gives it, the same each time. */
 function tintOf(a: App): string {
   if (a.color && /^#(?:[0-9a-f]{3}){1,2}$/i.test(a.color)) return a.color;
   let h = 0; for (const c of a.id) h = (h * 31 + c.charCodeAt(0)) % 360;
@@ -127,8 +126,8 @@ function tile(a: App): HTMLElement {
   logo.append(icon);
   const meta = el('div', undefined, 'meta'), up = el('div', a.running ? 'Running' : 'Starts on open', 'chip up');
   up.title = a.running ? `${a.name}'s page is up` : `${a.name}'s server starts when you open it`;
-  const uses = a.processors === 'own' ? el('div', 'Its own harnesses', 'chip') : a.uses?.length ? el('div', a.uses.join(' · '), 'chip') : el('div', 'No harness', 'chip none');
-  uses.title = a.processors === 'own' ? `${a.name} starts its harnesses itself` : a.uses?.length ? `What ${a.name} may use: ticked under Processors` : `Tick a harness for ${a.name} under Processors${device ? ', on the computer vindu runs on' : ''}`;
+  const uses = a.uses?.length ? el('div', a.uses.join(' · '), 'chip') : el('div', 'No harness', 'chip none');
+  uses.title = a.uses?.length ? `What ${a.name} may use: ticked under Processors` : `Tick a harness for ${a.name} under Processors${device ? ', on the computer vindu runs on' : ''}`;
   meta.append(up, uses);
   b.append(logo, el('span', a.name), ...(a.about ? [el('small', a.about)] : []), meta);
   b.addEventListener('click', () => open(a));
@@ -143,7 +142,6 @@ function draw() {
   $('phones').setAttribute('aria-pressed', String(!front && page === 'phone'));
   $('procs').hidden = $('procs-here').hidden = !setsUp; // what each app may use is set on the computer, or on an owner device
   $('apps').hidden = !!front || (page !== 'apps' && !sheet); // an app in front: the shell's own pages wait behind it
-  $('none').hidden = apps.length > 0;
   $('host').textContent = host ? `On ${host}${overTailnet ? ', over your tailnet' : ''}` : '';
   $('processors').hidden = !!front || page !== 'processors';
   $('phone').hidden = !!front || page !== 'phone';
@@ -162,7 +160,7 @@ function drawAppSheet() {
   if (!a || $('app-sheet').hidden) return;
   const icon = $<HTMLImageElement>('app-sheet-icon'); icon.onerror = () => { icon.onerror = null; icon.src = initials(a); }; icon.src = a.icon || initials(a);
   $('app-sheet-name').textContent = a.name;
-  $('app-sheet-line').textContent = `${a.running ? 'Running' : 'Not running'} · ${a.processors === 'own' ? 'its own harnesses' : a.uses?.length ? a.uses.join(', ') : 'no harness ticked'}`;
+  $('app-sheet-line').textContent = `${a.running ? 'Running' : 'Not running'} · ${a.uses?.length ? a.uses.join(', ') : 'no harness ticked'}`;
   $('app-out').hidden = !!device; // as the bar's tab: a device's browser keeps no window of the app's own for it
   $('app-close-name').textContent = `Close ${a.name}`;
 }
@@ -183,7 +181,7 @@ function welcome() {
 }
 
 async function processors() {
-  const p = await shell.invoke('shell:processors') as { processors: Processor[]; connectors: Connector[]; apps: App[]; grants: Grants };
+  const p = await shell.invoke('shell:processors') as { processors: Processor[]; connectors: Connector[]; apps: Pick<App, 'id' | 'name'>[]; grants: Grants };
   const harnessOf = (x: Processor) => p.processors.find(h => h.id === x.harness)?.name ?? x.harness ?? '';
   $('list').replaceChildren(...p.processors.map(x => {
     const card = el('div', undefined, x.kind === 'model' ? 'proc model' : 'proc'); card.dataset.processor = x.id;
@@ -194,13 +192,13 @@ async function processors() {
     if (x.note) card.append(el('div', x.note, 'note'));
     return card;
   }));
-  // the connectors the person set up, as columns of their own, for the apps that ask for connectors
+  // the connectors the person set up, as columns of their own: each task is given those the person chooses for it
   const column = (x: Processor) => (x.kind === 'model' ? `${x.name} (on ${harnessOf(x)})` : x.name); // a cell's label at a phone's width, where each row is a card
   const head = el('tr'); head.append(el('th', 'App'), ...p.processors.map(x => { const h = el('th', column(x)); if (x.kind === 'model') h.title = `The model ${x.model} at ${x.endpoint}, on ${harnessOf(x)}: its key stays in the core`; return h; }), ...p.connectors.map(c => { const h = el('th', c.name, 'conn'); h.title = `The connector ${c.name}: its key stays in the core`; return h; }));
   $('held').textContent = 'Apps connect their own processors. Choose which ones each app can use.';
   $('head').replaceChildren(head);
-  const tick = (a: App, id: string, label: string, column: string, grants: Grants) => {
-    const cell = el('td', undefined, 'on'), box = el('input'); box.type = 'checkbox'; box.dataset.grant = id; if (!id.startsWith('connector:')) box.dataset.processor = id;
+  const tick = (a: Pick<App, 'id' | 'name'>, id: string, label: string, column: string, grants: Grants) => {
+    const cell = el('td', undefined, 'on'), box = el('input'); box.type = 'checkbox'; box.dataset.processor = id;
     box.checked = (grants[a.id] ?? []).includes(id); box.title = `${a.name} may use ${label}`; cell.dataset.label = column;
     box.addEventListener('change', () => { void shell.invoke('shell:grant', a.id, id, box.checked).then((g: Grants) => $('grants').replaceChildren(...rows(g)), (e: Error) => { box.checked = !box.checked; note(e.message); }); });
     cell.addEventListener('click', e => { if (e.target === cell && phoneSized.matches) box.click(); }); // a card's whole line, at a phone's width
@@ -209,17 +207,11 @@ async function processors() {
   const labelled = <T extends HTMLElement>(label: string, cell: T): T => { cell.dataset.label = label; return cell; };
   const rows = (grants: Grants): HTMLElement[] => p.apps.map(a => {
     const row = el('tr'); row.dataset.app = a.id; row.append(el('td', a.name));
-    if (a.processors === 'own') {
-      const cell = labelled('Harnesses', el('td', 'Uses its own', 'own')); cell.colSpan = p.processors.length; cell.title = `${a.name} manages its own processors`;
-      row.append(cell);
-    } else for (const x of p.processors) {
-      if (x.kind === 'model' && !a.folder) { const c = labelled(column(x), el('td', 'In its bar', 'own')); c.title = `${a.name} offers each model processor with its harness, in its bar, for you to pick for each task`; row.append(c); }
-      else row.append(tick(a, x.id, x.kind === 'model' ? `the model processor ${x.name}` : x.name, column(x), grants));
+    for (const x of p.processors) {
+      if (x.kind === 'model') { const c = labelled(column(x), el('td', 'In its bar', 'own')); c.title = `${a.name} offers each model processor with its harness, in its bar, for you to pick for each task`; row.append(c); }
+      else row.append(tick(a, x.id, x.name, column(x), grants));
     }
-    if (p.connectors.length) {
-      if (a.connectors === 'granted') for (const c of p.connectors) row.append(tick(a, c.id, c.name, c.name, grants));
-      else { const cell = labelled('Connectors', el('td', a.connectors === 'per-task' ? 'Chosen for each task' : 'Asks for none', 'own')); cell.colSpan = p.connectors.length; row.append(cell); }
-    }
+    if (p.connectors.length) { const cell = labelled('Connectors', el('td', 'Chosen for each task', 'own')); cell.colSpan = p.connectors.length; row.append(cell); }
     return row;
   });
   $('grants').replaceChildren(...rows(p.grants));

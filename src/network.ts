@@ -20,8 +20,8 @@ import { runTailscale, serveArgs, serveOffArgs, servedPorts, tailnetOf, tailscal
 
 export type NetworkSetup = {
   userData: string;
-  /** The ports of the pages to serve on the tailnet: the shell's, Desktop's, each folder app's that runs, and the doors to
-   *  Vindu's pages of the tasks open (page-doors.ts). */
+  /** The ports of the pages to serve on the tailnet: the shell's, Desktop's, and the doors to Vindu's pages of the tasks
+   *  open (page-doors.ts). */
   ports: () => number[];
   /** Tailscale's command line: where its installers put it, by default (a test's own). */
   cli?: string | null;
@@ -189,7 +189,7 @@ export function startNetwork(o: NetworkSetup) {
       if (on && !r.ok) { write({ ...read(), serve: false }); await serveAll(); }
       o.changed?.(); return r;
     },
-    /** Each page that starts later (a folder's app, a door to a task's pages) is served too, while serving is on, and
+    /** Each page that starts later (a door to a task's pages) is served too, while serving is on, and
      *  forwarded on the Wi-Fi; one that closed is taken back from both. */
     refresh: async () => { await reconcile(); return serveAll(); },
     async state() {

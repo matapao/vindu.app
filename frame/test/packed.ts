@@ -35,9 +35,8 @@ const registered = () => spawnSync(LSREGISTER, ['-dump'], { encoding: 'utf8', ma
 const ADDRESS = /^http:\/\/localhost:(\d+)\/([\w-]{20,})\/$/;
 if (process.platform !== 'darwin' || !fs.existsSync(PROGRAM)) { console.log(`no packed app at ${BUNDLE}: pnpm pack:app first (on a Mac)`); process.exit(1); }
 
-// the test's folders: the core's (Desktop alone on its grid), and the app's
+// the test's folders: the core's, and the app's
 const data = tmp('frame-packed-core-'), frameData = tmp('frame-packed-app-');
-fs.writeFileSync(path.join(data, 'settings.json'), JSON.stringify({ installed: [] }));
 // the test's feed, with a release newer than the app's: its latest-mac.yml, as electron-builder writes one; nothing else
 const version = plist('CFBundleShortVersionString'), newer = version.replace(/(\d+)$/, d => String(Number(d) + 1));
 const asked: string[] = [];

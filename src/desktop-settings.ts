@@ -15,11 +15,10 @@ export type Settings = { servers?: ServerSpec[]; apps?: AppsSwitch; appsNetwork?
   holidays?: string[];                         // days that are not working days (YYYY-MM-DD), for dates and reminders in working days
   jobs?: { on?: boolean; perDay?: number };   // jobs from views' hooks: off unless on; each at most perDay runs a day (3)
   tasksFolder?: string;                       // where a task gets a folder of its own when the person picks none (~/Vindu)
-  installed?: string[];
-  restoreFolderAccess?: Record<string, string>; // an owner's explicit ID-to-canonical-folder choice for unbound legacy data
 };
 type Processor = { id: string; name: string };
-export const APP = { id: 'desktop', name: 'Vindu', asks: ['processors', 'connectors'] };
+/** Desktop: the app this process serves, and the owner of its tasks in Celler. */
+export const APP = { id: 'desktop', name: 'Vindu' };
 export type AppOptions = {
   pickFolder?: () => Promise<string | null>;                  // the task's working folder: the person picks it, by default
   pickSave?: (name: string) => Promise<string | null>;         // where an export goes: the person picks it, by default

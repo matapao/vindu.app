@@ -170,7 +170,6 @@ async function fromItsBundle() {
  *  here; a link to an app; started again. */
 async function fromItsArchive() {
   const otherData = tmp('frame-client-pi-'), data = tmp('frame-client-core-'), frameData = tmp('frame-client-app-'); made.push(otherData, data, frameData);
-  fs.writeFileSync(path.join(otherData, 'settings.json'), JSON.stringify({ installed: [] }));
   const other = spawn(process.execPath, [TEST_CORE], { env: { ...process.env, VINDU_PORT: String(ELSEWHERE_PORT), VINDU_USER_DATA: otherData }, stdio: ['ignore', 'ignore', 'inherit'] }); spawned.add(other);
   const inspect = await until(() => { try { return (JSON.parse(fs.readFileSync(path.join(otherData, 'test-core.json'), 'utf8')) as { inspect: string }).inspect; } catch { return undefined; } }, 'the core elsewhere');
   const ask = async <T>(p: string) => (await (await fetch(`${inspect}${p}`)).json()) as T;

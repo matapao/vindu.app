@@ -4,7 +4,6 @@ import { bindTaskTools } from './desktop-task-tools.js';
 import { openAddress } from './os.js';
 import { openTask, type OpenTask, type TaskRouter, type TaskSetup } from './task.js';
 import type { Opening, TaskCheckpoint, ThreadItem } from './task-checkpoint.js';
-import type { AppAccess } from './app-endpoint.js';
 import { APP } from './desktop-settings.js';
 import type { DesktopHost } from './desktop-host.js';
 import type { TaskActivity } from './desktop-task-activity.js';
@@ -17,8 +16,6 @@ type StartOptions = {
   from?: { snapshot: ReturnType<OpenTask['snapshot']>; record: OpenTask['record']; task: string };
   job?: Job;
   id?: string;
-  title?: string;
-  owner?: AppAccess;
   saved?: TaskCheckpoint;
 };
 type Job = { label: string; prompt: string; connectors?: string[]; writes: boolean };
@@ -50,11 +47,10 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
     if (state.closing) throw new Error('Vindu is closing');
     const id = given ?? newId();
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new Error('Invalid task identifier');
-    const owner = options.owner ?? APP;
-    const detached = owner.id === APP.id && !ask.harness;
+    const detached = !ask.harness;
     const harness = detached ? '' : harnessOf(ask.harness);
     if (!detached) {
-      ensureProcessor(owner, harness);
+      ensureProcessor(harness);
       if (!o.connect) throw new Error('No consumer is attached to this task.');
     }
     if (ask.inference) throw new Error('The consumer configures its model endpoint.');
@@ -65,13 +61,12 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
     const readsOnly = job ? !job.writes : saved?.readsOnly ?? false;
     if (tasks.has(id) || routers.has(id) || (!saved && fs.lstatSync(dataDir, { throwIfNoEntry: false }))) throw new Error(`there is already a task ${id}`);
     const found = availableConnectors();
-    const chosen = found.connectors.filter(c => (owner.id === APP.id || celler.grants(owner.id).includes(`connector:${c.name}`))
-      && (q.connectors ?? q.servers ?? []).includes(c.name) && (!job?.connectors || job.connectors.includes(c.name)));
+    const chosen = found.connectors.filter(c => (q.connectors ?? q.servers ?? []).includes(c.name) && (!job?.connectors || job.connectors.includes(c.name)));
     const lifetime = new AbortController();
     const router: TaskRouter = {};
     routers.set(id, router);
     const tools = await bindTaskTools(host, {
-      owner, cwd, harness, detached, readsOnly, chosen, router, signal: lifetime.signal,
+      cwd, harness, readsOnly, chosen, router, signal: lifetime.signal,
     }).catch(error => { routers.delete(id); throw error; });
     threads.set(id, saved?.thread ?? []);
     if (saved) {
@@ -79,13 +74,13 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
         ...(saved.activity.running ? { ended: { at: Date.now(), stop: 'interrupted' } } : {}) });
     } else {
       const base = path.basename(cwd);
-      const title = from ? (acts.get(from.task)?.title ?? base) + (job ? `: ${job.label}` : ', from its view') : options.title || base;
+      const title = from ? (acts.get(from.task)?.title ?? base) + (job ? `: ${job.label}` : ', from its view') : base;
       acts.set(id, { id, title, folder: cwd, harness, opened: Date.now(), asks: [], due: { count: 0 },
         problems: [], notices: [], unseen: [], seenAt: job ? 0 : Date.now(), pinned: false, muted: false,
         ...(job ? { job: job.label } : {}) });
     }
     const t = await openTask({
-      id, owner: owner.id, router, harness, cwd, dataDir, uiProvider, restore: saved?.view, connect: detached ? undefined : o.connect,
+      id, owner: APP.id, router, harness, cwd, dataDir, uiProvider, restore: saved?.view, connect: detached ? undefined : o.connect,
       ...tools.bindings,
       ...(o.home ? { home: o.home } : {}),
       ...(template ? { template } : {}), ...(from ? { from } : {}), person: now.person, device: deviceTools(now.device),
@@ -94,7 +89,7 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
         const t0 = tasks.get(id); const was = opened.get(id); if (!t0 || !was) return { refused: 'the task is closing' };
         if (!t0.attached) return { refused: 'No consumer is attached to this task.' };
         const r = await start({ ...was.q, template: undefined }, was.cwd, {
-          from: { snapshot: j.snapshot, record: t0.record, task: id }, job: j, owner: was.owner,
+          from: { snapshot: j.snapshot, record: t0.record, task: id }, job: j,
         });
         return { id: r.id };
       } } : {}),
@@ -124,8 +119,8 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
     }));
     const close = t.close.bind(t);
     t.close = async () => { lifetime.abort(); try { await close(); } finally { await tools.close(); } };
-    if (from || options.title || saved?.named) named.add(id);
-    tasks.set(id, t); opened.set(id, { q: { ...q, connectors: chosen.map(c => c.name) }, cwd: t.cwd, owner, readsOnly });
+    if (from || saved?.named) named.add(id);
+    tasks.set(id, t); opened.set(id, { q: { ...q, connectors: chosen.map(c => c.name) }, cwd: t.cwd, readsOnly });
     // a task the window started is in front once the window shows it (task:shown), in the order the person started them, not
     // as each finishes opening; a job runs in the background: the person's task stays in front
     if (!job && given === undefined) { state.front = id; toPhone('front', { task: id }); }
@@ -159,14 +154,14 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
     const item: ThreadItem = { kind: 'user', text, files: attachments?.map(({ name }) => ({ name })) ?? [] };
     if (typeof text !== 'string') throw new Error('Give the task a message.');
     if (!t.attached) throw new Error('No consumer is attached to this task.');
-    ensureProcessor(initial.owner, initial.q.harness);
+    ensureProcessor(initial.q.harness);
     if (a?.running) throw new Error('This task is already running');
     remember(id, item); send('user', id, item, origin);
     const words = text.replace(/\s+/g, ' ').trim();
     if (a) { if (!named.has(id) && words) { named.add(id); a.title = words.length > 48 ? `${words.slice(0, 47)}…` : words; } a.running = { since: Date.now(), what: words.length > 60 ? `${words.slice(0, 59)}…` : words }; changed(id); }
-    const finish = celler.meter(initial.owner.id);
+    const finish = celler.meter(APP.id);
     const monitor = setInterval(() => {
-      try { ensureProcessor(initial.owner, initial.q.harness); } catch { void t.cancel(); }
+      try { ensureProcessor(initial.q.harness); } catch { void t.cancel(); }
     }, 100);
     monitor.unref();
     try {
