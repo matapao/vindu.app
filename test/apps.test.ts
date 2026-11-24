@@ -40,12 +40,12 @@ function folderApp(id: string, name: string, asks: string[]) {
   fs.writeFileSync(path.join(dir, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>');
   fs.writeFileSync(path.join(dir, 'server.mjs'), `import http from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
-const url = process.env.CELLER_URL, token = process.env.CELLER_TOKEN;
+const url = process.env.HARNESS_URL, token = process.env.HARNESS_TOKEN;
 const access = url && token ? await (await fetch(url + '/access', { headers: { authorization: 'Bearer ' + token } })).json() : null;
 http.createServer((req, res) => {
   if (process.env.VINDU_KEY_TEST_CREDENTIAL) return void res.writeHead(500).end();
   if (req.url !== '/' + process.env.APP_TOKEN + '/') return void res.writeHead(404).end();
-  res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ access, shell: !!process.env.VINDU_SHELL }));
+  res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ access, shell: !!process.env.SHELL_ORIGINS && process.env.SHELL_ORIGINS === process.env.VINDU_SHELL }));
 }).listen(Number(process.env.PORT), '127.0.0.1');
 `);
   return dir;

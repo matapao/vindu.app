@@ -60,7 +60,8 @@ export async function appEndpoint(options: {
       for (const [token, app] of tokens) if (app.id === owner) tokens.delete(token);
       const token = randomBytes(32).toString('base64url');
       tokens.set(token, apps.get(owner)!);
-      return { CELLER_URL: url, CELLER_TOKEN: token };
+      // Apps read HARNESS_URL and HARNESS_TOKEN; the CELLER_ names stay for apps that still read those.
+      return { HARNESS_URL: url, HARNESS_TOKEN: token, CELLER_URL: url, CELLER_TOKEN: token };
     },
     close() {
       tokens.clear();

@@ -7,9 +7,10 @@
 // token its page's address has (APP_TOKEN), and serves its page at /<token>/ only, as the shell's own pages are: a
 // program here that knows only its port reaches nothing of it. Each is an app of Celler through Vindu (app.ts),
 // with what its app.json asks it for ("processors", "connectors", "storage"); one that asks for something is also given
-// the Celler-backed endpoint and its own token there, new at each start (CELLER_URL, CELLER_TOKEN), and takes
-// only what the person grants it under Processors, as Desktop does. Every app is told where the shell is (VINDU_SHELL),
-// so it can let the shell frame its page. An app's server runs as the person's own programs do: what keeps a harness in
+// the Celler-backed endpoint and its own token there, new at each start (HARNESS_URL and HARNESS_TOKEN, also given as
+// CELLER_URL and CELLER_TOKEN), and takes only what the person grants it under Processors, as Desktop does. Every app
+// is told where the shell is (SHELL_ORIGINS, also given as VINDU_SHELL), so it can let the shell frame its page. An
+// app's server runs as the person's own programs do: what keeps a harness in
 // its folder is the harness's own sandbox, and nothing here holds an app's server. The shell draws nothing inside an app:
 // splitting the screen, other windows, an installed web app's own window are the browser's and the system's to do. The
 // shell's page and Desktop's can each be installed as a web app (web.ts makes their manifests); a folder's app makes its own.
