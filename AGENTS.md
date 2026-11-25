@@ -1,10 +1,14 @@
 # Working on Vindu.app
 
 Vindu.app is its own app: it installs as an Electron app or as a web app in the browser, and runs its own tasks.
-No other app installs into it or is launched from it. Keep web and Electron behavior in the shared app (`src/`,
-`static/`). The Electron app lives in `frame/`. Change a dependency pinned in [dependencies.json](dependencies.json)
-in its own checkout, never in `node_modules`. The app controls device permissions and which processors its tasks may
-use. Keep harness prompts and tool descriptions with the processor that runs a task.
+No other app installs into it or is launched from it. It runs on this one computer, for the person at it: the app's
+own server process listens on 127.0.0.1 alone, and the Electron app starts it and shows Desktop from it. Nothing
+connects to it from another device: keep every listener on loopback.
+
+Keep web and Electron behavior in the shared app (`src/`, `static/`). The Electron app lives in `frame/`. Change a
+dependency pinned in [dependencies.json](dependencies.json) in its own checkout, never in `node_modules`. The app
+controls device permissions and which processors its tasks may use. Keep harness prompts and tool descriptions with
+the processor that runs a task.
 
 ## Code style
 
@@ -39,8 +43,6 @@ pnpm build
 pnpm test
 pnpm pack:app --dir
 pnpm test:packed
-pnpm pack:app --client --dir
-pnpm test:client
 ```
 
 Tests use isolated profiles and do not call models. For manual checks, set `VINDU_USER_DATA` to a temporary

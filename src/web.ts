@@ -1,14 +1,10 @@
-// A page's server: one page of the app (Desktop, the connector keys), served on this computer only, on an
-// origin of its own (a port of its own), with a token in every address. It serves the page and its files, and carries
-// the page's calls and the app's events both ways over one WebSocket, in order, as Electron's IPC did. A request has to
-// name the token and come to this computer by its own name (localhost or 127.0.0.1, so no other name that resolves here
-// reaches it); a socket has to come from the page's own origin, since a page of any other site can open a socket to any
-// address. Nothing else is served: no listing, only the files named, and a page's web app manifest and icon when the
-// person can install it as an app of its own. Once the person serves the core on their private network (network.ts), a
-// page is reached by that https name too, at the same port, and there only at a paired device's token, never its own, so a
-// device removed opens nothing. No page frames another of the app's.
-// So it is on their own Wi-Fi, once the person says so: by this computer's names there, over HTTPS, as the core's
-// forwarder brings those requests here (network.ts), at a paired device's token alone too.
+// A page's server: one page of the app (Desktop, the connector keys), served on this computer's loopback only
+// (127.0.0.1), on an origin of its own (a port of its own), with a token in every address. It serves the page and its
+// files, and carries the page's calls and the app's events both ways over one WebSocket, in order, as Electron's IPC
+// did. A request has to name the token and come to this computer by its own name (localhost or 127.0.0.1, so no other
+// name that resolves here reaches it); a socket has to come from the page's own origin, since a page of any other site
+// can open a socket to any address. Nothing else is served: no listing, only the files named, and a page's web app
+// manifest and icon when the person can install it as an app of its own. No page frames another of the app's.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -17,12 +13,9 @@ import path from 'node:path';
 import type { Duplex } from 'node:stream';
 import { readPageRequest } from './socket-messages.js';
 
-/** A page connected to its server: what came from it, and the way to it alone. window: the desktop app's window it is in
- *  (its key, which the app adds to the socket's request as X-Vindu-Frame), when it is in one. */
-export type Sender = { id: number; send(channel: string, ...a: unknown[]): void; window?: string;
-  /** Where the page is: the name it came by (this computer's, the tailnet's, or the Wi-Fi's), whether by https (the
-   *  tailnet's), whether from another device (the tailnet's or the Wi-Fi's), and the paired device it is on, if any. */
-  via?: { host: string; secure: boolean; away?: boolean; device?: string; token?: string } };
+/** A page connected to its server: what came from it, and the way to it alone. window: the Electron window it is in
+ *  (its key, which the Electron app adds to the socket's request as X-Vindu-Frame), when it is in one. */
+export type Sender = { id: number; send(channel: string, ...a: unknown[]): void; window?: string };
 export type Handler = (e: { sender: Sender }, ...a: any[]) => unknown;
 export type PageServer = {
   /** The page's address, token and all. */
@@ -33,8 +26,6 @@ export type PageServer = {
   on(channel: string, f: Handler): void;
   /** An event to every page connected. */
   send(channel: string, ...a: unknown[]): void;
-  sendLocal(channel: string, ...a: unknown[]): void;
-  revokeDevice(device: string): void;
   clients(): number;
   close(): Promise<void>;
 };
@@ -49,27 +40,12 @@ export type PageServerOptions = {
   files?: Record<string, string>;
   /** The page's Content-Security-Policy; the socket is added to what it may connect to, and frame-ancestors. */
   csp: string | (() => string);
-  /** The https names it is also reached at (the person's tailnet's), at the same port. */
-  names?: () => string[];
-  /** The names it is reached at on the person's own Wi-Fi (this computer's name there, its addresses), at the same port
-   *  over HTTPS, by the core's forwarder (network.ts). */
-  lan?: () => string[];
-  /** Other tokens it opens for: a paired device's, as its id. */
-  devices?: (token: string) => string | undefined;
-  /** A desktop app's link from a paired device (the person's other computer), at its token's frame socket. */
-  links?: (device: string, ch: { send(message: string): void; onMessage(f: (message: string) => void): void; onClose(f: () => void): void }) => void;
-  /** What it serves with no token (Desktop's pairing page); origin: the page's own, as the request reached it. */
-  open?: (req: http.IncomingMessage, res: http.ServerResponse, rest: string, origin: string) => boolean | Promise<boolean>;
   /** Its own addresses under the token (an upload, a download): true when it answered. */
   routes?: (req: http.IncomingMessage, res: http.ServerResponse, rest: string) => boolean | Promise<boolean>;
   /** The page as a web app the person can install, in a window of its own: its name and its icon (SVG or PNG), as the
    *  system shows them, and the colours of its bar (theme) and of its window before the page draws (background), its
    *  light ones. The page links manifest.webmanifest and app-icon, both served under the token. */
   app?: WebApp;
-  /** What a page on another device (by the tailnet's name or the Wi-Fi's) is told in place of what a page here is told:
-   *  each event and answer as it goes to that page, still in order. Desktop's: Vindu's pages' addresses, which only this
-   *  computer reaches, as that device reaches them (page-doors.ts). */
-  away?: (via: NonNullable<Sender['via']>, v: unknown) => unknown;
   onConnect?: (s: Sender) => void;
   onClose?: (s: Sender) => void;
 };
@@ -124,20 +100,13 @@ function pngSize(file: string): string | undefined {
 
 export async function startPageServer(o: PageServerOptions): Promise<PageServer> {
   const handlers = new Map<string, { answer: boolean; f: Handler }>();
-  const sockets = new Map<number, { socket: Duplex; event: (channel: string, a: unknown[], shared?: () => string) => void }>(); let last = 0;
-  const linked = new Set<Duplex>(); // desktop apps' links (o.links)
-  const upgraded = new Map<Duplex, string | undefined>(); // includes desktop frame links
+  const sockets = new Map<number, (channel: string, a: unknown[], shared?: () => string) => void>(); let last = 0; // each page's way to it
+  const upgraded = new Set<Duplex>();
   let port = 0;
-  const names = () => [...(o.names?.() ?? []), ...(o.lan?.() ?? [])].map(n => n.toLowerCase());
-  const hosts = () => new Set([`localhost:${port}`, `127.0.0.1:${port}`, ...names().map(n => `${n}:${port}`)]);
-  const origins = () => new Set([`http://localhost:${port}`, `http://127.0.0.1:${port}`, ...names().map(n => `https://${n}:${port}`)]);
-  /** By this computer's own name: here, where the page's own token opens it; by any other (the tailnet's, the Wi-Fi's), a
-   *  paired device's token alone. */
-  const local = (host: string) => host.startsWith('localhost:') || host.startsWith('127.0.0.1:');
-  /** Both remote transports use HTTPS; the loopback listener is HTTP. */
-  const tls = (host: string) => names().some(n => host === `${n}:${port}`);
+  const hosts = () => new Set([`localhost:${port}`, `127.0.0.1:${port}`]);
+  const origins = () => new Set([`http://localhost:${port}`, `http://127.0.0.1:${port}`]);
   const csp = () => `${typeof o.csp === 'function' ? o.csp() : o.csp}`
-    .replace(/connect-src [^;]*/, m => `${m.replace(/'none'/, '').trim()} ws://localhost:${port} ws://127.0.0.1:${port}${names().map(n => ` wss://${n}:${port}`).join('')}`)
+    .replace(/connect-src [^;]*/, m => `${m.replace(/'none'/, '').trim()} ws://localhost:${port} ws://127.0.0.1:${port}`)
     + "; frame-ancestors 'none'";
   const base = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' };
   const secure = { ...base, 'X-Frame-Options': 'DENY' }; // no page frames these
@@ -154,12 +123,7 @@ export async function startPageServer(o: PageServerOptions): Promise<PageServer>
     const host = (req.headers.host ?? '').toLowerCase();
     if (!hosts().has(host)) { res.writeHead(421, secure).end(); return; }
     const [, tok, ...rest] = url.pathname.split('/');
-    const away = !local(host); // by the tailnet's name or the Wi-Fi's: a device's token only
-    if ((tok !== o.token || away) && !(tok && o.devices?.(tok))) {
-      const origin = `${tls(host) ? 'https' : 'http'}://${host}`;
-      void Promise.resolve(o.open?.(req, res, url.pathname.slice(1), origin) ?? false).then(done => { if (!done) res.writeHead(404, secure).end(); }, () => { if (!res.headersSent) res.writeHead(500, secure).end(); });
-      return;
-    }
+    if (tok !== o.token) { res.writeHead(404, secure).end(); return; }
     const name = rest.join('/');
     void (async () => {
       if (o.routes && await o.routes(req, res, name)) return;
@@ -177,13 +141,10 @@ export async function startPageServer(o: PageServerOptions): Promise<PageServer>
     if (!url) { socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n'); return; }
     const key = req.headers['sec-websocket-key'];
     const [, tok, rest] = url.pathname.split('/'), host = (req.headers.host ?? '').toLowerCase();
-    const away = !local(host);
-    const device = tok === o.token && !away ? undefined : tok ? o.devices?.(tok) : undefined;
-    const linking = rest === 'frame' && !!device && !!o.links; // a paired computer's desktop app, giving its link: not a page's socket
-    if (((tok !== o.token || away) && !device) || (rest !== 'socket' && !linking) || url.pathname.split('/').length !== 3 || !hosts().has(host) || (!linking && !origins().has(String(req.headers.origin))) || typeof key !== 'string') {
+    if (tok !== o.token || rest !== 'socket' || url.pathname.split('/').length !== 3 || !hosts().has(host) || !origins().has(String(req.headers.origin)) || typeof key !== 'string') {
       socket.end('HTTP/1.1 403 Forbidden\r\n\r\n'); return;
     }
-    upgraded.set(socket, device); socket.once('close', () => upgraded.delete(socket));
+    upgraded.add(socket); socket.once('close', () => upgraded.delete(socket));
     const accept = crypto.createHash('sha1').update(key + GUID).digest('base64');
     socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
     const id = ++last;
@@ -192,22 +153,12 @@ export async function startPageServer(o: PageServerOptions): Promise<PageServer>
       if (!socket.destroyed) socket.write(Buffer.concat([head, data]));
     };
     const send = (text: string) => frame(0x1, Buffer.from(text));
-    const window = /^[\w-]{8,}$/.exec(String(req.headers['x-vindu-frame'] ?? ''))?.[0]; // the desktop app's, which says which keys it has
-    const via = { host, secure: tls(host), away, ...(device ? { device, token: tok } : {}) };
-    // to a page on another device, each event and answer as that device reaches it (o.away), one after another, so they
-    // reach it in the order they were sent; to a page here, as it is
-    let queue = Promise.resolve();
-    const tell = (v: unknown, write: (v: unknown) => string, shared?: () => string) => {
-      if (!away || !o.away) { send(shared ? shared() : write(v)); return; }
-      queue = queue.then(async () => { let x = v; try { x = await o.away!(via, v); } catch { /* as it is: the page shows what it can */ } send(write(x)); });
-    };
-    const event = (channel: string, a: unknown[], shared?: () => string) => tell(a, x => JSON.stringify({ t: 'ev', ch: channel, a: x }), shared);
-    const sender: Sender = { id, send: (channel, ...a) => event(channel, a), ...(window ? { window } : {}), via };
-    const heard: ((m: string) => void)[] = [], ended: (() => void)[] = [];
-    if (linking) { linked.add(socket); o.links!(device!, { send, onMessage: f => { heard.push(f); }, onClose: f => { ended.push(f); } }); } // its messages to the link, never a page's events
-    else sockets.set(id, { socket, event });
-    const answer = (n: number, v: unknown, e?: unknown) => (e === undefined ? tell(v ?? null, x => JSON.stringify({ t: 'reply', id: n, v: x ?? null }))
-      : tell(null, () => JSON.stringify({ t: 'reply', id: n, e: String((e as Error)?.message ?? e) })));
+    const window = /^[\w-]{8,}$/.exec(String(req.headers['x-vindu-frame'] ?? ''))?.[0]; // the Electron window's, which says which keys it has
+    const event = (channel: string, a: unknown[], shared?: () => string) => send(shared ? shared() : JSON.stringify({ t: 'ev', ch: channel, a }));
+    const sender: Sender = { id, send: (channel, ...a) => event(channel, a), ...(window ? { window } : {}) };
+    sockets.set(id, event);
+    const answer = (n: number, v: unknown, e?: unknown) => send(e === undefined ? JSON.stringify({ t: 'reply', id: n, v: v ?? null })
+      : JSON.stringify({ t: 'reply', id: n, e: String((e as Error)?.message ?? e) }));
     const message = (text: string) => {
       const m = readPageRequest(text);
       if (!m) return;
@@ -222,7 +173,7 @@ export async function startPageServer(o: PageServerOptions): Promise<PageServer>
     // frames as they come: a message may come in pieces (continuations), and a frame across reads
     let buf = Buffer.alloc(0); let parts: Buffer[] = []; let size = 0;
     const ping = setInterval(() => frame(0x9, Buffer.alloc(0)), 25_000);
-    const gone = () => { clearInterval(ping); if (linked.delete(socket)) for (const f of ended.splice(0)) f(); if (sockets.delete(id)) o.onClose?.(sender); };
+    const gone = () => { clearInterval(ping); if (sockets.delete(id)) o.onClose?.(sender); };
     socket.on('data', (chunk: Buffer) => {
       buf = Buffer.concat([buf, chunk]);
       for (;;) {
@@ -240,11 +191,11 @@ export async function startPageServer(o: PageServerOptions): Promise<PageServer>
         if (op === 0xa) continue;
         size += data.length; if (size > MAX_MESSAGE) { socket.destroy(); return; }
         parts.push(data);
-        if (fin) { const text = Buffer.concat(parts).toString('utf8'); parts = []; size = 0; if (linking) for (const f of heard) f(text); else message(text); }
+        if (fin) { const text = Buffer.concat(parts).toString('utf8'); parts = []; size = 0; message(text); }
       }
     });
     socket.on('close', gone); socket.on('error', gone); socket.on('end', () => { gone(); socket.destroy(); }); // ended there: gone here too, not left half open
-    if (!linking) o.onConnect?.(sender);
+    o.onConnect?.(sender);
   });
   port = await listen(server, o.port ?? 0);
   const origin = `http://localhost:${port}`;
@@ -252,11 +203,9 @@ export async function startPageServer(o: PageServerOptions): Promise<PageServer>
     url: `${origin}/${o.token}/`, port, origin, token: o.token,
     handle: (channel, f) => { handlers.set(channel, { answer: true, f }); },
     on: (channel, f) => { handlers.set(channel, { answer: false, f }); },
-    send: (channel, ...a) => { let text: string | undefined; for (const s of sockets.values()) s.event(channel, a, () => (text ??= JSON.stringify({ t: 'ev', ch: channel, a }))); },
-    sendLocal: (channel, ...args) => { for (const client of sockets.values()) if (!upgraded.get(client.socket)) client.event(channel, args); },
+    send: (channel, ...a) => { let text: string | undefined; for (const event of sockets.values()) event(channel, a, () => (text ??= JSON.stringify({ t: 'ev', ch: channel, a }))); },
     clients: () => sockets.size,
-    revokeDevice(device) { for (const [socket, owner] of upgraded) if (owner === device) socket.destroy(); },
-    close: () => new Promise<void>(r => { for (const s of upgraded.keys()) s.destroy(); server.close(() => r()); server.closeAllConnections?.(); }),
+    close: () => new Promise<void>(r => { for (const s of upgraded) s.destroy(); server.close(() => r()); server.closeAllConnections?.(); }),
   };
 }
 

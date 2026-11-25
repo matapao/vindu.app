@@ -273,7 +273,7 @@ await (async () => {
     await until(() => js<boolean>(`[...document.querySelectorAll('#template option')].some(o => o.textContent === 'View: Smoke view')`), 'offered for the next task');
     check(true, 'Pin this view: kept as a template file, offered when a task starts');
 
-    // a slot the person fills by capturing waits in the bar (and on the phone window); the view is static until let go
+    // a slot the person fills by capturing waits in the bar; the view is static until let go
     const started = t.useTemplate({ name: 'Site visit', slots: { photos: { title: 'Photos', block: 'media', by: 'person', ask: { capture: 'photo', about: 'Photos of the damage' } } } });
     await until(() => js<boolean>(`document.getElementById('captures').textContent.includes('Photos of the damage (photo)')`), 'the capture, waiting in the bar');
     await until(() => js<boolean>(`document.getElementById('mode').textContent === 'Static view: Site visit' && !document.getElementById('dynamic').hidden`), 'the bar says the view is static');
@@ -283,15 +283,6 @@ await (async () => {
     await click('#dynamic');
     await until(() => js<boolean>(`document.getElementById('mode').textContent === 'The model composes the view'`), 'dynamic again');
     check((await started).started === true, 'Not now lets the capture go; Let the model change it makes the view dynamic again');
-
-    // the phone window: off until the person turns it on; its page only with the token in its address
-    await click('#phone');
-    const phoneUrl = await until(() => js<string>(`(document.getElementById('thread').textContent.match(/http:\\/\\/127\\.0\\.0\\.1:\\d+\\/[\\w-]+\\//) ?? [''])[0]`), 'its address');
-    const got = await fetch(phoneUrl);
-    check(got.status === 200 && (await got.text()).includes('Views on this phone') && (await fetch(phoneUrl.replace(/\/[\w-]+\/$/, '/not-the-token/'))).status === 404, 'the phone window: on at the person\'s word, on this computer only, its page only with the token');
-    await click('#phone');
-    await until(() => !a.phone(), 'off');
-    check(true, 'and off again');
 
     // the connector in the task: the note says what it reaches, and that it has no key yet
     await until(() => js<boolean>(`document.getElementById('thread').textContent.includes('Selected connector: Accounts (key missing).')`), 'the connector\'s note');

@@ -1,4 +1,4 @@
-/** Both page sockets and desktop frame links carry JSON objects. */
+/** Both page sockets and the Electron window's link carry JSON objects. */
 export function readObject(text: string): Record<string, unknown> | undefined {
   try {
     const value = JSON.parse(text);

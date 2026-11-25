@@ -11,7 +11,6 @@ import type { Secrets } from './secrets.js';
 export type Settings = { servers?: ServerSpec[]; apps?: AppsSwitch; appsNetwork?: boolean; terminal?: { run?: boolean; shell?: string; login?: boolean };
   person?: { name?: string };                  // who answers in this app's windows: kept with each answer, for what needs n people
   device?: { clipboard?: boolean; info?: boolean }; // the device's own data the model may ask for, each after the person's yes: off unless turned on here
-  phone?: { lan?: boolean; port?: number };    // the phone window: this machine only, unless lan is true (the local network)
   holidays?: string[];                         // days that are not working days (YYYY-MM-DD), for dates and reminders in working days
   jobs?: { on?: boolean; perDay?: number };   // jobs from views' hooks: off unless on; each at most perDay runs a day (3)
   tasksFolder?: string;                       // where a task gets a folder of its own when the person picks none (~/Vindu)
@@ -34,12 +33,7 @@ export type AppOptions = {
   port?: number;                                               // Desktop's port (7300); the keys page's is the next one
   browserArgs?: string[];                                      // what the pages' Chromium starts with besides its own (a test's host rules)
   secrets?: Secrets;                                           // where connector keys are kept: the system's own store, by default (a test's own)
-  frame?: FrameLink;                                           // the desktop app's link, when it started this core: browser views' pages live there, over their panes
-  tailscale?: string | null;                                   // Tailscale's command line: where its installers put it, by default (a test's own; null: none)
-  push?: { fetch?: typeof fetch; allowed?: (endpoint: string) => boolean }; // where notifications to devices go: the push services, by default (a test's own)
-  lan?: boolean;                                               // on the person's own Wi-Fi until they say otherwise (a Pi's core: VINDU_LAN=on); off, by default
-  lanAddresses?: () => string[];                               // this computer's addresses there: its network interfaces', by default (a test's own)
-  lanName?: string;                                            // its name there: its hostname, as .local, by default (a test's own)
+  frame?: FrameLink;                                           // the Electron window's link, when it started this server: browser views' pages live there, over their panes
   pageBrowser?: () => Promise<Browser>;                        // the browser Vindu checks pages in: Playwright's Chromium, by default (a test's own)
 };
 /** Where Desktop's pages are, and their scripts once built. */

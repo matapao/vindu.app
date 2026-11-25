@@ -1,9 +1,13 @@
 # Vindu.app
 
-Vindu.app is an app of its own. It installs itself as an Electron app, or as a web app from its page in the browser.
-Either way it opens Desktop, where it runs its own tasks. Activity lists them, and a task resumes its conversation,
-panes and selected context. Settings, in Activity's head, sets the processors its tasks may use, their daily budget,
-and the phone paired with it.
+Vindu.app is an app of its own, for the person at this computer. It installs itself as an Electron app, or as a web
+app from its page in the browser. Either way it opens Desktop, where it runs its own tasks. Activity lists them, and a
+task resumes its conversation, panes and selected context. Settings, in Activity's head, sets the processors its tasks
+may use and their daily budget, and says whether this computer shows the app's notifications.
+
+The app runs on this one computer. Its own server process serves Desktop, and the page where the person keeps their
+connectors' keys, on 127.0.0.1 alone. The Electron app starts that process and shows Desktop from it. No other device
+connects to the app.
 
 ## Run locally
 

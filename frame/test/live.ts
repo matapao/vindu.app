@@ -1,9 +1,9 @@
-// Live browser panes in the desktop app: a task's browser views' pages live in the app, each a page of its own laid over
-// its pane in Desktop's window, and the core drives each over the DevTools protocol, as it drives a page in its own
-// hidden Chromium (where a browser's tab shows pictures of it, as Desktop's browser test checks). The person's page and
-// the model's, each in a session of its own. With a core of the test's own (core.ts): its harness calls no model, and its
-// tasks run on this computer; and a site of the test's own, on this computer. Synthetic data only. Its windows show on the
-// screen while it runs:
+// Live browser panes in the Electron app: a task's browser views' pages live in the app, each a page of its own laid
+// over its pane in Desktop's window, and the app's server drives each over the DevTools protocol, as it drives a page in
+// its own hidden Chromium (where a browser's tab shows pictures of it, as Desktop's browser test checks). The person's
+// page and the model's, each in a session of its own. With a server of the test's own (server.ts): its harness calls no
+// model, and its tasks run on this computer; and a site of the test's own, on this computer. Synthetic data only. Its
+// windows show on the screen while it runs:
 //   pnpm build (in vindu, then here), then pnpm test here
 import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -57,21 +57,21 @@ const connector = http.createServer(toNodeHandler(createMcpHandler(() => {
   return server;
 })));
 await new Promise<void>(resolve => connector.listen(0, '127.0.0.1', resolve));
-const data = tmp('frame-live-core-'), frameData = tmp('frame-live-app-');
+const data = tmp('frame-live-server-'), frameData = tmp('frame-live-app-');
 fs.writeFileSync(path.join(data, 'settings.json'), JSON.stringify({
   apps: { servers: { billing: 'on' } }, servers: [{ type: 'http', name: 'billing', url: `http://127.0.0.1:${(connector.address() as net.AddressInfo).port}/mcp` }],
 }));
-const env = launchEnv({ VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_CORE: path.join(import.meta.dirname, 'core.js') });
+const env = launchEnv({ VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_SERVER: path.join(import.meta.dirname, 'server.js') });
 
 let code = 1, app: ElectronApplication | undefined;
 try {
   app = await electron.launch({ executablePath: ELECTRON, args: [FRAME], env });
-  const said: string[] = []; // what the app and its core printed, for a failure to show
+  const said: string[] = []; // what the app and its server printed, for a failure to show
   app.process().stdout?.on('data', d => said.push(String(d))); app.process().stderr?.on('data', d => said.push(String(d)));
   process.on('exit', () => { if (process.exitCode || code) console.log(`# the app said, at the end:\n${said.join('').split('\n').filter(l => /vindu/.test(l)).slice(-15).join('\n')}`); });
   const desk = await app.firstWindow(); // Desktop, the app's window
   await desk.waitForURL(ADDRESS, { timeout: 60_000 });
-  const inspect = await until(() => { try { return (JSON.parse(fs.readFileSync(path.join(data, 'test-core.json'), 'utf8')) as { inspect: string }).inspect; } catch { return undefined; } }, 'the test core');
+  const inspect = await until(() => { try { return (JSON.parse(fs.readFileSync(path.join(data, 'test-server.json'), 'utf8')) as { inspect: string }).inspect; } catch { return undefined; } }, 'the test server');
   const ask = async <T>(p: string) => (await (await fetch(`${inspect}${p}`)).json()) as T;
   await desk.waitForSelector('#prompt', { timeout: 30_000 });
   const js = <T = unknown>(code: string) => desk.evaluate(code) as Promise<T>;
@@ -85,7 +85,7 @@ try {
     return (w?.contentView.children ?? []).map(v => ({ bounds: v.getBounds(), url: (v as unknown as { webContents?: { getURL(): string } }).webContents?.getURL() ?? '' }));
   }, PORT);
   const near = (b: { x: number; y: number; width: number; height: number }, r: Rect) => Math.abs(b.x - r.x) <= 1 && Math.abs(b.y - r.y) <= 1 && Math.abs(b.width - r.w) <= 1 && Math.abs(b.height - r.h) <= 1;
-  check(Number(ADDRESS.exec(desk.url())![1]) === PORT, 'the app starts the core, and Desktop opens in its window');
+  check(Number(ADDRESS.exec(desk.url())![1]) === PORT, 'the app starts its server, and Desktop opens in its window');
 
   // a task, in a folder of the test's
   await until(() => js<boolean>('!!document.getElementById("place")'), 'the window');
@@ -101,7 +101,7 @@ try {
   await click('#page');
   await until(async () => (await pageOf('b1'))?.live, 'the person\'s page, live in its pane').catch(async e => {
     const windows = await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(w => ({ url: w.webContents.getURL(), views: w.contentView.children.length })));
-    throw new Error(`${(e as Error).message}: the core has ${JSON.stringify(await pageOf('b1'))}; its link ${JSON.stringify(await ask('/frame'))}; the app's windows ${JSON.stringify(windows)}`);
+    throw new Error(`${(e as Error).message}: the server has ${JSON.stringify(await pageOf('b1'))}; its link ${JSON.stringify(await ask('/frame'))}; the app's windows ${JSON.stringify(windows)}`);
   });
   const first = await until(async () => { const v = await views(); return v.length === 1 ? v : undefined; }, 'its page in Desktop\'s window');
   const s1 = await slot('b1');
@@ -109,7 +109,7 @@ try {
   await js(`(() => { const f = document.querySelector('${pane('b1')} form.vindu-viewbar'); f.querySelector('input.vindu-address').value = '${base.replace('http://', '')}'; f.requestSubmit(); })()`);
   await until(async () => (await pageOf('b1'))?.url === base, 'the address the person typed');
   await until(async () => (await views())[0]?.url === base, 'the live page, there');
-  check(true, 'the address typed in its bar loads in the live page: the core drives it over the DevTools protocol');
+  check(true, 'the address typed in its bar loads in the live page: the server drives it over the DevTools protocol');
 
   // the model's side, through the task's UI server, as the harness reaches it
   const ui = new Client({ name: 'frame-live', version: '1' });
@@ -151,17 +151,17 @@ try {
   await invoice.getByText(receipt, { exact: true }).waitFor();
   check(true, 'the provider resource renders its live tool result inside the Electron task');
 
-  // the task closed: its pages go from the window, and from the core
+  // the task closed: its pages go from the window, and from the server
   await js(`desktop.close(${JSON.stringify(task)})`);
   await until(async () => (await views()).length === 0 && (await ask<string[]>('/tasks')).length === 0, 'the task closed');
   check(true, 'the task closed: its pages are gone from the window');
 
-  // Quit: the core stops
+  // Quit: the server stops
   const closed = app.waitForEvent('close', { timeout: 30_000 });
   await app.evaluate(({ app }) => { setTimeout(() => app.quit(), 50); }).catch(() => undefined);
   await closed; app = undefined;
-  await until(async () => !(await answers(PORT)), 'the core stopped', 30_000);
-  check(true, 'Quit stops the core and its pages');
+  await until(async () => !(await answers(PORT)), 'the server stopped', 30_000);
+  check(true, 'Quit stops the server and its pages');
   console.log(`# ${passed} passed`);
   code = 0;
 } catch (e) { console.log(String((e as Error)?.stack ?? e)); } finally {

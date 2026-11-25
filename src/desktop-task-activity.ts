@@ -8,11 +8,11 @@ import { arrange, stateOf, notifies, type Activity, type ActState } from './acti
 export type TaskActivity = ReturnType<typeof taskActivity>;
 
 export function taskActivity(host: DesktopHost) {
-  const { userData, send, desktop, network, tilde } = host;
+  const { userData, send, desktop, tilde } = host;
   const tasks = new Map<string, OpenTask>();
   let closing = false;
   const routers = new Map<string, TaskRouter>(); // each task's way in, from the moment its window exists
-  // what each task shows now, for a phone window that comes later
+  // what each task shows now, for a page of Desktop's that opens later
   const latest = new Map<string, { views: Map<string, unknown>; state?: unknown }>();
   const seen = (task: string) => { let l = latest.get(task); if (!l) latest.set(task, l = { views: new Map() }); return l; };
   const startedWith = new Map<string, string>(); // task → its template's file
@@ -28,7 +28,6 @@ export function taskActivity(host: DesktopHost) {
     const id = `n${++noticed}`;
     notices.set(id, () => { send('front', task); then?.(); });
     send('notice', { id, task, title, body });
-    if (!onScreen()) void network?.notify({ title, body, tag: `desktop:${task}` }); // and on the person's devices, when they are away from this one
   };
   const looking = (task: string) => task === front && onScreen();
   const notify = (task: string, r: Reminder) => {

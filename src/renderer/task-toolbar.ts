@@ -153,31 +153,13 @@ export function bindTaskToolbar({
         await refreshMode(t);
       });
   });
-  byId('phone').addEventListener('click', () => {
-    void desktop.phone().then(
-      (r) => {
-        byId('phone').setAttribute('aria-pressed', String(!!r));
-        const text = r
-          ? `the phone window is on: open ${r.url} on your phone${r.lan ? ' (it is on your local network)' : ' (this computer only: set phone.lan in your settings for the local network)'}`
-          : 'the phone window is off';
-        const current = getTask();
-        if (current) appendNote(current, text);
-        else appendAppNotice(text);
-      },
-      (err) => {
-        const current = getTask();
-        if (current) appendNote(current, errorMessage(err), true);
-        else appendAppNotice(errorMessage(err));
-      },
-    );
-  });
   desktop.onMenu((what) => {
     if (what === 'branch') byId('branch').click();
     if (what === 'next') goNext();
   });
 
-  let captures: Capture[] = []; // what slots of the person's wait for: a file from here, or the phone's camera or pad
-  /** What slots of the open task's wait for: a file from here (or the phone's camera or pad). */
+  let captures: Capture[] = []; // what slots of the person's wait for: a file from here
+  /** What slots of the open task's wait for: a file from here. */
   function drawCaptures() {
     const box = byId('captures');
     box.replaceChildren();

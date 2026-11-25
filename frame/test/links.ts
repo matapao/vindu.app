@@ -1,4 +1,4 @@
-// Links in the desktop app, driven by Playwright's Electron: vindu://desktop/<rest> opens Desktop's one window with the
+// Links in the Electron app, driven by Playwright's Electron: vindu://desktop/<rest> opens Desktop's one window with the
 // link in its address's fragment (#vindu-link=…), whichever way the link comes: among the app's arguments as it starts (as
 // Windows and Linux give it), as a Mac gives it (open-url, emitted here), or among a second start's arguments
 // (second-instance). The page there stays as it is: a fragment loads nothing, and the page hears it change. A link that
@@ -28,15 +28,15 @@ async function until<T>(f: () => Promise<T> | T, what: string, ms = 30_000): Pro
 }
 const answers = (port: number) => new Promise<boolean>(r => { const c = net.connect(port, '127.0.0.1'); c.once('connect', () => { c.destroy(); r(true); }); c.once('error', () => r(false)); });
 
-// the core's folder, and the app's
-const data = tmp('frame-links-core-'), frameData = tmp('frame-links-app-');
+// the server's folder, and the app's
+const data = tmp('frame-links-server-'), frameData = tmp('frame-links-app-');
 const env = launchEnv({ VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData });
 const ADDRESS = /^http:\/\/localhost:(\d+)\/([\w-]{20,})\/(#.*)?$/;
 const linked = (url: string, link: string) => url.endsWith(`/#vindu-link=${encodeURIComponent(link)}`) && ADDRESS.test(url);
 
 let code = 1, app: ElectronApplication | undefined;
 try {
-  // started by a link (as Windows and Linux start it): the core, then Desktop's window with the link
+  // started by a link (as Windows and Linux start it): the server, then Desktop's window with the link
   const first = 'vindu://desktop/open?task=t-0412&note=a%20b';
   app = await electron.launch({ executablePath: ELECTRON, args: [FRAME, first], env });
   const a = app;
@@ -86,7 +86,7 @@ try {
   await until(() => linked(desk.url(), first), 'Desktop\'s window, with the link', 60_000);
   await desk.waitForSelector('#prompt', { timeout: 30_000 });
   check(desk.url().startsWith(desktopAt()) && (await shown()).length === 1 && await answers(PORT),
-    'started by a link to Desktop, the app starts the core and opens Desktop\'s window, the link in its address\'s fragment');
+    'started by a link to Desktop, the app starts the server and opens Desktop\'s window, the link in its address\'s fragment');
 
   // a Mac's link (open-url): the window brought forward, the page as it was, the link its fragment now
   await desk.evaluate(() => { const w = window as unknown as { kept: string; heard: string[] }; w.kept = 'this page'; w.heard = []; addEventListener('hashchange', () => w.heard.push(location.hash)); });
@@ -115,12 +115,12 @@ try {
   check((await shown()).length === 1 && linked(desk.url(), enroll) && await desk.evaluate(() => (window as unknown as { kept?: string }).kept) === 'this page',
     'a link to no window of the app\'s brings Desktop\'s window forward, its page and its link as they were');
 
-  // Quit: the core stops
+  // Quit: the server stops
   const closed = a.waitForEvent('close', { timeout: 30_000 });
   await a.evaluate(({ app }) => { setTimeout(() => app.quit(), 50); }).catch(() => undefined);
   await closed; app = undefined;
-  await until(async () => !(await answers(PORT)), 'the core stopped', 30_000);
-  check(true, 'Quit stops the core');
+  await until(async () => !(await answers(PORT)), 'the server stopped', 30_000);
+  check(true, 'Quit stops the server');
   console.log(`# ${passed} passed`);
   code = 0;
 } catch (e) { console.log(String((e as Error)?.stack ?? e)); } finally {

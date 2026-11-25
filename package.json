@@ -13,10 +13,10 @@
     "check:security": "node scripts/check-security.mjs",
     "build": "node scripts/bootstrap.mjs",
     "compile": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\" && tsc -p . && pnpm run bundle",
-    "bundle": "esbuild dist/src/renderer.js --bundle --format=iife --log-level=warning --outfile=dist/src/renderer.bundle.js && esbuild dist/src/phone.js --bundle --format=iife --log-level=warning --outfile=dist/src/phone.bundle.js && esbuild dist/src/keys.js --bundle --format=iife --log-level=warning --outfile=dist/src/keys.bundle.js",
+    "bundle": "esbuild dist/src/renderer.js --bundle --format=iife --log-level=warning --outfile=dist/src/renderer.bundle.js && esbuild dist/src/keys.js --bundle --format=iife --log-level=warning --outfile=dist/src/keys.bundle.js",
     "typecheck": "tsc -p . --noEmit",
     "test": "node scripts/check-names.mjs && pnpm run compile && vitest run",
-    "test:browser": "node dist/test/browser-smoke.js && node dist/test/browser-phone-ask.js && node dist/test/browser-inference.js && node dist/test/browser-settings.js",
+    "test:browser": "node dist/test/browser-smoke.js && node dist/test/browser-inference.js && node dist/test/browser-settings.js",
     "start": "node dist/src/main.js",
     "build:local": "node scripts/bootstrap.mjs --local"
   },

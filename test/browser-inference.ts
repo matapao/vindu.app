@@ -91,7 +91,7 @@ try {
   await reopened.waitForFunction(() => document.querySelectorAll('#thread .said').length === 3);
   assert.equal(connections, 2);
   assert.deepEqual(runs.map(run => run.prompt), ['Use the selected processor.', 'Use this invoice.', 'A new message after restart.']);
-  console.log('ok 5 - restarting the core restores the same task and connects only for a new message');
+  console.log('ok 5 - restarting the app restores the same task and connects only for a new message');
   console.log('# 5 passed');
 } finally {
   await desktop?.close();

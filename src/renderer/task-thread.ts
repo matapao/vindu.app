@@ -42,7 +42,7 @@ export function createTaskThread(
     d.append(head, element('pre', '', said));
     add(task, d);
   }
-  /** A note for no task (a connector that could not be read, the phone window): above the list. */
+  /** A note for no task (a connector that could not be read, the keys page): above the list. */
   function appendAppNotice(text: string) {
     const n = byId('appnotes');
     n.prepend(element('div', 'note', text));

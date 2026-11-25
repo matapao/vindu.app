@@ -93,7 +93,7 @@ export function mountTaskPanes(task: Task, visible: boolean, reportError: Report
   return { el, shell };
 }
 
-/** Keep Activity and task panes reachable on a phone, without opening the keyboard. */
+/** Keep Activity and task panes reachable in a narrow window, without opening the keyboard. */
 export function bindPaneNavigation(currentTask: () => Task | undefined) {
   const narrow = matchMedia('(max-width: 700px)');
   const viewCount = (t: Task | undefined) => (t?.views ? (t.state?.views.length ?? 0) : 0);

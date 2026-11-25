@@ -1,8 +1,13 @@
-import type { Field } from '@matapao/vindu/server';
+import type { Ask, Field } from '@matapao/vindu/server';
 import { desktop } from '../desktop-client.js';
-import { fileSelection } from '../phone-transfer.js';
 import { button, element } from './dom.js';
 import type { Pending, Task } from './task-state.js';
+
+/** The files each of a form's file fields holds as the person answers it: the host compares these ids as it takes the answer. */
+function fileSelection(ask: Ask): Record<string, string[]> {
+  return Object.fromEntries(Object.entries(ask.fields).filter(([, field]) => field.format === 'file')
+    .map(([key]) => [key, ask.files?.[key]?.ids ?? []]));
+}
 
 export function renderQuestion(task: Task, view: string, p: Pending) {
   const k = p.ask,

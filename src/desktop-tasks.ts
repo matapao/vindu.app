@@ -26,7 +26,7 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
     celler, send, desktop, uiProvider } = host;
   const { availableConnectors } = host.connectors;
   const { tasks, routers, opened, acts, threads, threadAsks, changed, named, latest, startedWith, save, remember, tellActivity, need } = state;
-  const { toPhone, deviceTools } = media;
+  const { deviceTools } = media;
   let lastId = 0;
   const newId = () => {
     lastId = Math.max(Date.now(), lastId + 1);
@@ -95,7 +95,7 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
       } } : {}),
       ...(isJob ? { jobs: false, hooks: false, readsOnly } : {}),
       views: {
-        terminal: { run: now.terminal?.run, shell: now.terminal?.shell, login: now.terminal?.login, onExit: (term, code) => desktop.sendLocal('pty-exit', id, term, code) },
+        terminal: { run: now.terminal?.run, shell: now.terminal?.shell, login: now.terminal?.login, onExit: (term, code) => desktop.send('pty-exit', id, term, code) },
         // the person's pages keep their sign-ins; the model's pages start empty each task and never see the person's
         browser: {
           open: ({ name, owner }) => pages.open(id, name, owner),
@@ -123,7 +123,7 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
     tasks.set(id, t); opened.set(id, { q: { ...q, connectors: chosen.map(c => c.name) }, cwd: t.cwd, readsOnly });
     // a task the window started is in front once the window shows it (task:shown), in the order the person started them, not
     // as each finishes opening; a job runs in the background: the person's task stays in front
-    if (!job && given === undefined) { state.front = id; toPhone('front', { task: id }); }
+    if (!job && given === undefined) state.front = id;
     acts.get(id)!.folder = t.cwd;
     changed(id);
     if (!saved) {
@@ -182,21 +182,18 @@ export function desktopTasks(host: DesktopHost, state: TaskActivity, media: Task
 type TaskUpdates = Pick<TaskSetup, 'onShow' | 'onShell' | 'onSuggest' | 'capture' | 'onReminder' | 'onNotice' |
   'onText' | 'onNote' | 'onTold' | 'onSwitches' | 'onActivity' | 'openLink' | 'app'>;
 
-/** Publish task events to its local window, saved thread, Activity entry and paired phone. */
+/** Publish task events to Desktop's page, the saved thread and the Activity entry. */
 function taskUpdates(id: string, restoring: boolean, host: DesktopHost, state: TaskActivity, media: TaskCaptures): TaskUpdates {
-  const { send, doors, home } = host;
+  const { send, home } = host;
   const { remember, seen, threadAsk, acts, changed } = state;
-  const { toPhone } = media;
   function append(kind: 'text' | 'note' | 'told', text: string) {
     remember(id, { kind, text });
     send(kind, id, text);
   }
   return {
     onShow(view) {
-      doors.note(id, view);
       send('view', id, view);
       seen(id).views.set(view.name, view);
-      toPhone('view', { task: id, view });
       if (view.ask) {
         threadAsk(id, view.name, view.ask.title);
         return;
@@ -211,13 +208,12 @@ function taskUpdates(id: string, restoring: boolean, host: DesktopHost, state: T
       send('shell', id, shell);
       const latest = seen(id);
       latest.state = shell;
-      // Keep outstanding questions for phones that pair after a question was opened.
+      // Keep outstanding questions for a page of Desktop's that opens after a question was.
       for (const [name, view] of latest.views) {
         if (!shell.views.some(v => v.name === name) && !(view as { ask?: unknown } | undefined)?.ask) {
           latest.views.delete(name);
         }
       }
-      toPhone('shell', { task: id, state: shell });
       state.fromShell(id, shell);
     },
     onSuggest: text => send('suggest', id, text),
@@ -247,7 +243,6 @@ function taskUpdates(id: string, restoring: boolean, host: DesktopHost, state: T
         send('askGone', id, view, action);
         threadAsk(id, view);
         state.latest.get(id)?.views.delete(view);
-        toPhone('askGone', { task: id, view });
       },
       onSend: view => send('sent', id, view),
     },

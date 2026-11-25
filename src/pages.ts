@@ -1,11 +1,11 @@
 // The browser views' pages: each in a Chromium the app drives, never in the person's own browser. The model reaches a
-// page through the DevTools protocol, as before (Vindu's browser views). Where the desktop app started this core (its
-// link, frame-link.ts), a page lives in the app: a page of its own, laid over its pane in the app's window that shows the
-// task, where the person sees it and acts in it as in any browser. Otherwise it lives in a Chromium of this process's
+// page through the DevTools protocol, as before (Vindu's browser views). Where the Electron app started this server (its
+// link, frame-link.ts), a page lives in the Electron app: a page of its own, laid over its pane in the window that shows
+// the task, where the person sees it and acts in it as in any browser. Otherwise it lives in a Chromium of this process's
 // (Playwright's, with no window), and the person sees it in its pane as pictures of it (the page's screencast, while the
 // pane shows) and acts in it from there: clicks, the wheel and keys go to the page as input, and the page is laid out at
-// its pane's size. A page of the app's is pictured that way too, for a pane in a browser's tab. The person's pages keep
-// their sign-ins (a profile of the app's, in its folder; in the desktop app, a session of its own); the model's start
+// its pane's size. A page of the Electron app's is pictured that way too, for a pane in a browser's tab. The person's
+// pages keep their sign-ins (a profile of the app's, in its folder; in the Electron app, a session of its own); the model's start
 // empty each task and never see the person's. No page gets the camera, the microphone, location or notifications, or
 // downloads anything; a page never opens a window of its own: what it would open there opens in the same pane, through
 // the same gate as any other move it makes.
@@ -25,7 +25,7 @@ export type Frame = { data: string; width: number; height: number };
 export type PageState = { url: string; title: string; loading: boolean; back: boolean; forward: boolean };
 /** A page, wherever it lives: its DevTools protocol (Vindu's, and this host's own, for pictures, input and its history),
  *  its address and title, an expression run in it (a test's), its end; in Playwright's Chromium, its first load; and in
- *  the desktop app, its place over a pane in one of the app's windows. */
+ *  the Electron app, its place over a pane in one of its windows. */
 type Made = { cdp: Cdp; own: Cdp; url(): string; title(): Promise<string>; evaluate(js: string): Promise<unknown>; close(): Promise<void>; ready?(): Promise<void>;
   native?(window: string | null, at?: FrameRect): void; shows?(window: string): boolean };
 type Open = { made: Made; box: { w: number; h: number; scale: number } | null; at: FrameRect | null; window?: string; live: boolean; casting: boolean; loading: boolean;
@@ -36,7 +36,7 @@ export type PageHostOptions = {
   profile: string;
   /** What the Chromium starts with besides its own (a test's host rules). */
   args?: string[];
-  /** The desktop app's link, when it started this core: the pages live in the app. */
+  /** The Electron app's link, when it started this server: the pages live in the Electron app. */
   frame?: FrameLink;
   /** A picture of a page while its pane shows it. */
   onFrame: (task: string, name: string, f: Frame) => void;
@@ -45,7 +45,7 @@ export type PageHostOptions = {
 };
 
 const session = (s: CDPSession): Cdp => ({ send: (m, params) => s.send(m as never, params as never), on: (ev, fn) => { s.on(ev as never, fn as never); return () => { s.off(ev as never, fn as never); }; } });
-/** A task's pages of the model's, in the desktop app: a session of the task's own, as a context of its own is here. */
+/** A task's pages of the model's, in the Electron app: a session of the task's own, as a context of its own is here. */
 const modelPartition = (task: string) => `vindu-model-${task.replace(/[^\w-]/g, '_')}`;
 
 export function pageHost(o: PageHostOptions) {
@@ -71,7 +71,7 @@ export function pageHost(o: PageHostOptions) {
     return { cdp: session(cdp), own: session(own), url: () => page.url(), title: () => page.title(), evaluate: js => page.evaluate(js), close: () => page.close(),
       ready: async () => { await page.goto('about:blank').catch(() => undefined); } };
   };
-  /** A page in the desktop app: the app opens what it would open in a window of its own in the same page. */
+  /** A page in the Electron app: it opens what the page would open in a window of its own in the same page. */
   const inFrame = async (frame: FrameLink, task: string, owner: 'model' | 'person'): Promise<Made> => {
     const v = await frame.open(owner === 'model' ? modelPartition(task) : 'persist:vindu-person');
     return { cdp: v.cdp, own: v.cdp, url: () => v.url(), title: () => v.title(), close: () => v.close(), native: (window, at) => v.place(window, at), shows: window => v.shows(window),
@@ -81,7 +81,7 @@ export function pageHost(o: PageHostOptions) {
         return r.result?.value;
       } };
   };
-  /** Where the page shows. Its pane in a window of the desktop app's, with its task in front: the page itself, laid over
+  /** Where the page shows. Its pane in a window of the Electron app's, with its task in front: the page itself, laid over
    *  the pane. Otherwise pictures of the page while its pane shows it and its task is in front, at the pane's size; none
    *  otherwise. A page that does not change sends none of its own, so each time its pane comes or changes size it is
    *  pictured once as it is. */
@@ -142,7 +142,7 @@ export function pageHost(o: PageHostOptions) {
       if (o.frame?.connected()) await o.frame.clear(modelPartition(task)).catch(() => undefined); // its session in the app, emptied
     },
     /** Where a page's pane is (CSS pixels in its window's page, and the screen's scale), or null while it is hidden; and,
-     *  for a pane in a window of the desktop app's, that window's key. */
+     *  for a pane in a window of the Electron app's, that window's key. */
     place(task: string, name: string, box: { x?: number; y?: number; w: number; h: number; scale: number } | null, window?: string) {
       const p = open.get(key(task, name)); if (!p) return;
       const shown = !!box && box.w > 0 && box.h > 0;
@@ -172,7 +172,7 @@ export function pageHost(o: PageHostOptions) {
     has: (task: string, name: string) => open.has(key(task, name)),
     /** For a test: what an expression gives in a page, as the page itself would run it. */
     evaluate: (task: string, name: string, js: string) => { const p = open.get(key(task, name)); if (!p) throw new Error(`no page ${name}`); return p.made.evaluate(js); },
-    /** A task's pages: each pane's size, whether it is pictured, or live in a window of the desktop app's, and its address. */
+    /** A task's pages: each pane's size, whether it is pictured, or live in a window of the Electron app's, and its address. */
     pages: (task: string) => [...open.entries()].filter(([k]) => k.startsWith(`${task}/`)).map(([k, p]) => ({ name: k.slice(task.length + 1), box: p.box, casting: p.casting, live: p.live, url: p.made.url() })),
     async stop() {
       for (const p of open.values()) if (p.made.native) await p.made.close().catch(() => undefined); // the app's: its pages go now

@@ -1,9 +1,9 @@
-// The desktop app as packed (scripts/pack.mjs: out/mac-arm64/vindu.app), started from its bundle (its own program), on a
-// port and in folders of the test's own, driven by Playwright's Electron: it starts the core inside the bundle (not the
-// one built beside this folder, nor the person's), opens Desktop in its window, and stops the core as it quits.
-// The bundle is signed, declares the vindu scheme only, and holds all of the core, linked to nothing outside it; the VM's
-// image is not in it, so the core inside says it is missing. Updates: with its feed at a small server of the test's own,
-// which has a newer release, the app reads the feed and says the release is out, and fetches and installs nothing.
+// The Electron app as packed (scripts/pack.mjs: out/mac-arm64/vindu.app), started from its bundle (its own program), on a
+// port and in folders of the test's own, driven by Playwright's Electron: it starts the server inside the bundle (not the
+// one built beside this folder, nor the person's), opens Desktop in its window, and stops the server as it quits.
+// The bundle is signed, declares the vindu scheme only, and holds all of the server, linked to nothing outside it.
+// Updates: with its feed at a small server of the test's own, which has a newer release, the app reads the feed and says
+// the release is out, and fetches and installs nothing.
 // A Mac registers an app it starts (Launch Services), and with it the schemes it declares: what this test's start
 // registered, it unregisters at the end. Its windows show on the screen while it runs:
 //   pnpm build, pnpm pack:app (or pnpm pack:app -- --dir), then pnpm test:packed
@@ -17,7 +17,7 @@ import { _electron as electron, type ElectronApplication } from 'playwright-core
 import { launchEnv } from './launch-env.js';
 
 const FRAME = path.join(import.meta.dirname, '..', '..'), BUNDLE = path.join(FRAME, 'out', 'mac-arm64', 'vindu.app');
-const PROGRAM = path.join(BUNDLE, 'Contents', 'MacOS', 'vindu'), CORE = path.join(BUNDLE, 'Contents', 'Resources', 'core');
+const PROGRAM = path.join(BUNDLE, 'Contents', 'MacOS', 'vindu'), SERVER = path.join(BUNDLE, 'Contents', 'Resources', 'server');
 const PORT = 17910, FEED = 17920;
 const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
 const tmp = (p: string) => fs.mkdtempSync(path.join(os.tmpdir(), p));
@@ -35,8 +35,8 @@ const registered = () => spawnSync(LSREGISTER, ['-dump'], { encoding: 'utf8', ma
 const ADDRESS = /^http:\/\/localhost:(\d+)\/([\w-]{20,})\/$/;
 if (process.platform !== 'darwin' || !fs.existsSync(PROGRAM)) { console.log(`no packed app at ${BUNDLE}: pnpm pack:app first (on a Mac)`); process.exit(1); }
 
-// the test's folders: the core's, and the app's
-const data = tmp('frame-packed-core-'), frameData = tmp('frame-packed-app-');
+// the test's folders: the server's, and the app's
+const data = tmp('frame-packed-server-'), frameData = tmp('frame-packed-app-');
 // the test's feed, with a release newer than the app's: its latest-mac.yml, as electron-builder writes one; nothing else
 const version = plist('CFBundleShortVersionString'), newer = version.replace(/(\d+)$/, d => String(Number(d) + 1));
 const asked: string[] = [];
@@ -48,12 +48,12 @@ const feed = http.createServer((q, r) => {
 });
 await new Promise<void>(r => feed.listen(FEED, '127.0.0.1', r));
 const env = launchEnv({ VINDU_PORT: String(PORT), VINDU_USER_DATA: data, VINDU_FRAME_DATA: frameData, VINDU_UPDATES: `http://127.0.0.1:${FEED}/` });
-delete env.VINDU_CORE; // the core inside the bundle, never another
+delete env.VINDU_SERVER; // the server inside the bundle, never another
 const wasRegistered = registered();
 
 let code = 1, app: ElectronApplication | undefined;
 try {
-  // the bundle: signed, declaring only the vindu scheme, with all of the core inside it, and no VM image
+  // the bundle: signed, declaring only the vindu scheme, with all of the server inside it
   const verify = spawnSync('codesign', ['--verify', '--deep', '--strict', BUNDLE], { encoding: 'utf8' });
   const by = /^Authority=(.*)$/m.exec(spawnSync('codesign', ['-dvv', BUNDLE], { encoding: 'utf8' }).stderr)?.[1] ?? 'ad hoc';
   const schemes = (JSON.parse(plist('CFBundleURLTypes', 'json')) as { CFBundleURLSchemes: string[] }[]).flatMap(t => t.CFBundleURLSchemes);
@@ -67,13 +67,13 @@ try {
       } else if (entry.isDirectory()) walk(file);
     }
   };
-  walk(CORE);
+  walk(SERVER);
   const sameBuild = (name: string, entry: string) => {
-    const installed = path.join(CORE, 'node_modules', name), source = path.join(FRAME, '..', 'node_modules', name);
+    const installed = path.join(SERVER, 'node_modules', name), source = path.join(FRAME, '..', 'node_modules', name);
     return fs.lstatSync(installed).isDirectory() && fs.readFileSync(path.join(installed, entry)).equals(fs.readFileSync(path.join(source, entry)));
   };
-  check(fs.readFileSync(path.join(CORE, 'dist/src/main.js')).equals(fs.readFileSync(path.join(FRAME, '../dist/src/main.js')))
-    && fs.existsSync(path.join(CORE, 'static', 'index.html')) && sameBuild('@matapao/celler', 'dist/index.js')
+  check(fs.readFileSync(path.join(SERVER, 'dist/src/main.js')).equals(fs.readFileSync(path.join(FRAME, '../dist/src/main.js')))
+    && fs.existsSync(path.join(SERVER, 'static', 'index.html')) && sameBuild('@matapao/celler', 'dist/index.js')
     && ['dist/index.js', 'dist/server.js', 'dist/renderer/shell.js', 'dist/renderer/workspace.js'].every(entry => sameBuild('@matapao/vindu', entry))
     && [
       ['Vindu.txt', '../LICENSE'],
@@ -81,11 +81,11 @@ try {
       ['Celler.txt', '../../celler/LICENSE'],
     ].every(([license, source]) => fs.readFileSync(path.join(BUNDLE, 'Contents/Resources/licenses', license))
       .equals(fs.readFileSync(path.resolve(FRAME, source))))
-    && fs.readdirSync(path.join(CORE, 'node_modules/@matapao')).sort().join() === 'celler,vindu'
-    && outside.length === 0 && !fs.existsSync(path.join(CORE, 'out')),
+    && fs.readdirSync(path.join(SERVER, 'node_modules/@matapao')).sort().join() === 'celler,vindu'
+    && outside.length === 0 && !fs.existsSync(path.join(SERVER, 'out')),
     `the bundle contains the current Vindu app, UI SDK and Celler builds, with no external links${outside.length ? ` (${outside.slice(0, 3).join(', ')})` : ''}`);
 
-  // started from its bundle: the core inside it, then Desktop
+  // started from its bundle: the server inside it, then Desktop
   app = await electron.launch({ executablePath: PROGRAM, env });
   const said: string[] = []; app.process().stdout?.on('data', d => said.push(String(d))); app.process().stderr?.on('data', d => said.push(String(d)));
   process.on('exit', () => { if (code) console.log(`# the app said:\n${said.join('').split('\n').filter(l => /vindu|Error|error/.test(l)).slice(-15).join('\n')}\n# its feed was asked for: ${asked.join(', ') || 'nothing'}`); });
@@ -93,25 +93,25 @@ try {
   await desk.waitForURL(ADDRESS, { timeout: 60_000 });
   const desktopAt = `http://localhost:${PORT}/${JSON.parse(fs.readFileSync(path.join(data, 'pages.json'), 'utf8')).desktop}/`;
   await desk.locator('#place').waitFor();
-  check(desk.url() === desktopAt && await desk.title() === 'Vindu', 'started from its bundle, the app opens Desktop in its window, at Desktop\'s address on the test\'s port, served by the core inside');
+  check(desk.url() === desktopAt && await desk.title() === 'Vindu', 'started from its bundle, the app opens Desktop in its window, at Desktop\'s address on the test\'s port, served by the server inside');
   const pid = Number(execFileSync('lsof', ['-nP', `-iTCP:${PORT}`, '-sTCP:LISTEN', '-t'], { encoding: 'utf8' }).trim().split('\n')[0]);
   const [ppid, ...command] = execFileSync('ps', ['-o', 'ppid=,command=', '-p', String(pid)], { encoding: 'utf8' }).trim().split(/\s+/);
-  check(Number(ppid) === app.process().pid && command.join(' ') === `${PROGRAM} ${path.join(CORE, 'dist', 'src', 'main.js')} --no-open`,
-    'the core that answers there is the one inside the bundle, started by the app on its own program (as Node)');
+  check(Number(ppid) === app.process().pid && command.join(' ') === `${PROGRAM} ${path.join(SERVER, 'dist', 'src', 'main.js')} --no-open`,
+    'the server that answers there is the one inside the bundle, started by the app on its own program (as Node)');
 
   // updates: the test's feed read, its newer release seen, and nothing fetched or installed
   await until(() => said.join('').includes(`vindu: ${newer} is out (this is ${version})`), 'the newer release, seen', 30_000);
   check(asked.length > 0 && asked.every(u => u === '/latest-mac.yml'), `the app reads its feed (the test's, VINDU_UPDATES) and says ${newer} is out, newer than its ${version}; it asks for nothing else (${asked.length} asked)`);
   await sleep(1500);
 
-  // Quit: the core stops, and the app is as it was
+  // Quit: the server stops, and the app is as it was
   const closed = app.waitForEvent('close', { timeout: 30_000 });
   await app.evaluate(({ app }) => { setTimeout(() => app.quit(), 50); }).catch(() => undefined);
   await closed; app = undefined;
-  await until(async () => !(await answers(PORT)), 'the core stopped', 30_000);
+  await until(async () => !(await answers(PORT)), 'the server stopped', 30_000);
   const gone = (() => { try { process.kill(pid, 0); return false; } catch { return true; } })();
   check(gone && plist('CFBundleShortVersionString') === version && asked.every(u => u === '/latest-mac.yml') && fs.existsSync(path.join(frameData, 'Local State')),
-    `Quit stops the core inside; the app is still ${version}, nothing fetched for the update, nothing installed; its own files went to the test's folder`);
+    `Quit stops the server inside; the app is still ${version}, nothing fetched for the update, nothing installed; its own files went to the test's folder`);
   console.log(`# ${passed} passed`);
   code = 0;
 } catch (e) { console.log(String((e as Error)?.stack ?? e)); } finally {

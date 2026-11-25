@@ -162,7 +162,7 @@ function enter(task: Task) {
   if (activeTask && activeTask !== task) activeTask.draft = promptBox.value;
   activeTask = task;
   thread.replaceChildren(task.turns);
-  if (narrow.matches) paneTo('side'); // a phone: its thread first, its views a tap away
+  if (narrow.matches) paneTo('side'); // a narrow window: its thread first, its views a tap away
   refreshHeading(task);
   refreshComposer();
   showViews(task);
@@ -172,7 +172,7 @@ function enter(task: Task) {
   drawMode(task);
   void refreshMode(task);
   thread.scrollTop = thread.scrollHeight;
-  if (!narrow.matches) promptBox.focus(); // a phone's keyboard comes up when the person taps in
+  if (!narrow.matches) promptBox.focus(); // a touch screen's keyboard comes up when the person taps in
 }
 function leave() {
   sessionStorage.removeItem('vindu.thread');

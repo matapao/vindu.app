@@ -59,5 +59,3 @@ jobs:
           pnpm test
           pnpm pack:app --dir
           pnpm test:packed
-          pnpm pack:app --client --dir
-          pnpm test:client

@@ -1,21 +1,18 @@
-// The desktop app's link, for a core the app started (frame/src/link.ts): its address and its token come in this
-// process's environment, and are taken out of it at once, so nothing the core starts is given them. Over it, the core
-// opens its browser views' pages in the app, each a page of its own laid over its pane in a window of the app's, and
-// drives each over the DevTools protocol, as it drives a page in its own hidden Chromium (pages.ts). One connection: the
-// token first, then one JSON message a line each way. The core asks ({ id, m, … }) and the app answers ({ id, result } or
-// { id, error }); the app tells the windows it has, each by its key ({ ev: 'windows' }), and what each page's DevTools
-// protocol says ({ ev: 'cdp' }).
-// A desktop app on another computer of the person's, paired with this core (a core elsewhere: a Pi, a Mac mini), gives its
-// link the same way, over its own socket to Desktop's page server (web.ts, at its device's token): the same messages, one a
-// frame. The core has every link it was given (frameLinks): a page is opened in the app the person used last, and shows
-// live only in that app's windows; elsewhere it is pictured, as in a browser.
+// The Electron window's link, for the server process it started (frame/src/link.ts): its address and its token come in
+// this process's environment, and are taken out of it at once, so nothing the server starts is given them. The address
+// is a socket only this user can open on this computer. Over it, the server opens its browser views' pages in the
+// Electron app, each a page of its own laid over its pane in a window of the app's, and drives each over the DevTools
+// protocol, as it drives a page in its own hidden Chromium (pages.ts). One connection: the token first, then one JSON
+// message a line each way. The server asks ({ id, m, … }) and the app answers ({ id, result } or { id, error }); the app
+// tells the windows it has, each by its key ({ ev: 'windows' }), and what each page's DevTools protocol says
+// ({ ev: 'cdp' }).
 import net from 'node:net';
 import { isCallId, readObject } from './socket-messages.js';
 import type { Cdp } from '@matapao/vindu/server';
 
 /** Where a pane is in its window's page, in CSS pixels. */
 export type FrameRect = { x: number; y: number; w: number; h: number };
-/** A page in the desktop app. */
+/** A page in the Electron app. */
 export type FrameView = {
   /** Its DevTools protocol, as Vindu's browser views take it. */
   cdp: Cdp;
@@ -37,15 +34,13 @@ export type FrameLink = {
   clear(partition: string): Promise<void>;
   /** Whether the app is still there. */
   connected(): boolean;
-  /** When the app last said anything (its windows, a page's event): the one the person uses now is the latest. */
-  heard?(): number;
 };
-/** A link's way, whatever carries it: a message out, each message in, and its end. */
-export type LinkChannel = { send(message: string): void; onMessage(f: (message: string) => void): void; onClose(f: () => void): void };
+/** A link's way: a message out, each message in, and its end. */
+type LinkChannel = { send(message: string): void; onMessage(f: (message: string) => void): void; onClose(f: () => void): void };
 
-/** The link over a channel: the core's side of it. */
-export function linkOver(ch: LinkChannel): FrameLink {
-  let live = true, last = 0, windows = new Set<string>(), heard = Date.now();
+/** The link over its channel: the server's side of it. */
+function linkOver(ch: LinkChannel): FrameLink {
+  let live = true, last = 0, windows = new Set<string>();
   const waiting = new Map<number, { ok: (v: unknown) => void; fail: (e: Error) => void }>();
   type View = { subs: Map<string, Set<(p: unknown) => void>>; url: string; main?: string };
   const views = new Map<string, View>();
@@ -60,10 +55,8 @@ export function linkOver(ch: LinkChannel): FrameLink {
     }
     if (m.ev === 'windows' && Array.isArray(m.keys) && m.keys.every(k => typeof k === 'string')) {
       windows = new Set(m.keys);
-      heard = Date.now();
     } else if (m.ev === 'cdp' && typeof m.view === 'string' && typeof m.method === 'string' && m.params && typeof m.params === 'object' && !Array.isArray(m.params)) {
       const v = views.get(m.view); if (!v) return;
-      heard = Date.now();
       const method = m.method, p = m.params as Record<string, unknown>;
       if (method === 'Page.frameNavigated' && p.frame && typeof p.frame === 'object') {
         const frame = p.frame as Record<string, unknown>;
@@ -75,15 +68,14 @@ export function linkOver(ch: LinkChannel): FrameLink {
       for (const f of v.subs.get(method) ?? []) { try { f(p); } catch { /* the listener's own */ } }
     }
   });
-  ch.onClose(() => { if (!live) return; live = false; windows = new Set(); for (const w of waiting.values()) w.fail(new Error('the desktop app is gone')); waiting.clear(); });
+  ch.onClose(() => { if (!live) return; live = false; windows = new Set(); for (const w of waiting.values()) w.fail(new Error('the Electron app is gone')); waiting.clear(); });
   const call = (m: string, params: Record<string, unknown> = {}) => new Promise<unknown>((ok, fail) => {
-    if (!live) { fail(new Error('the desktop app is gone')); return; }
+    if (!live) { fail(new Error('the Electron app is gone')); return; }
     const id = ++last; waiting.set(id, { ok, fail }); ch.send(JSON.stringify({ id, m, ...params }));
   });
   return {
     has: window => windows.has(window),
     connected: () => live,
-    heard: () => heard,
     clear: async partition => { await call('clear', { partition }); },
     async open(partition) {
       const { view } = await call('open', { partition }) as { view: string };
@@ -103,7 +95,7 @@ export function linkOver(ch: LinkChannel): FrameLink {
   };
 }
 
-/** The app's link, when it started this core and said so in `env`; nothing otherwise. */
+/** The Electron app's link, when it started this server and said so in `env`; nothing otherwise. */
 export async function frameLink(env: NodeJS.ProcessEnv = process.env): Promise<FrameLink | undefined> {
   const at = env.VINDU_FRAME, token = env.VINDU_FRAME_TOKEN;
   delete env.VINDU_FRAME; delete env.VINDU_FRAME_TOKEN;
@@ -116,22 +108,4 @@ export async function frameLink(env: NodeJS.ProcessEnv = process.env): Promise<F
     onMessage: f => { let buf = ''; sock.on('data', (d: string) => { buf += d; let i: number; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); if (line.trim()) f(line); } }); },
     onClose: f => { sock.on('close', f); sock.on('error', f); },
   });
-}
-
-/** Every link the core has: the app's that started it, and those of the person's other computers, as they come and go.
- *  A page opens in the one the person used last; a page shows live only in its own app's windows. */
-export function frameLinks() {
-  const all = new Set<FrameLink>();
-  const live = () => [...all].filter(l => l.connected());
-  const latest = () => live().sort((a, b) => (b.heard?.() ?? 0) - (a.heard?.() ?? 0))[0];
-  const links: FrameLink & { add(l: FrameLink): void; count(): number } = {
-    add: l => { all.add(l); },
-    count: () => live().length,
-    has: window => live().some(l => l.has(window)),
-    connected: () => live().length > 0,
-    heard: () => Math.max(0, ...live().map(l => l.heard?.() ?? 0)),
-    clear: async partition => { await Promise.all(live().map(l => l.clear(partition).catch(() => undefined))); },
-    open: partition => { const l = latest(); if (!l) return Promise.reject(new Error('no desktop app is there')); return l.open(partition); },
-  };
-  return links;
 }

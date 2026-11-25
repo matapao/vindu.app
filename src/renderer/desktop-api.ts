@@ -41,10 +41,6 @@ export type Opened = {
 export type Picked = { id: string; name: string; mime: string }; // a file the person attached: the main process keeps its path
 /** Desktop's day, as Celler counts it: its limits (0: none) and what it spent today. */
 export type Budget = { limits: { tokens: number; cost: number; minutes: number }; spent: { tokens: number; cost: number; minutes: number; currency?: string }; over?: string };
-export type PairingCode = { code: string; until: number; owner?: boolean };
-/** Phone, on this computer: Tailscale's step, whether the core is served there, a code to pair with, the devices paired. */
-export type PhoneState = { step: 'install' | 'signin' | 'https' | 'ready'; host: string | null; serving: boolean; address: string | null; code: PairingCode | null;
-  devices: { id: string; name: string; paired: string; seen?: string; push: boolean; owner?: boolean }[]; lan?: { on: boolean; address: string | null } };
 export interface DesktopApi {
   servers(): Promise<string[]>;
   keys(): Promise<void>;
@@ -88,20 +84,13 @@ export interface DesktopApi {
   captureFile(id: string): Promise<string[]>;
   captureSkip(id: string): Promise<void>;
   onCaptures(cb: (list: Capture[]) => void): Off;
-  phone(): Promise<{ url: string; lan: boolean } | null>;
-  // Settings: where this page is, Processors and the day's budget, and Phone
-  settingsState(): Promise<{ host: string; device: string | null; away: boolean; setsUp: boolean }>;
+  // Settings: this computer's name, Processors and the day's budget
+  settingsState(): Promise<{ host: string }>;
   settingsProcessors(): Promise<{ processors: { id: string; name: string }[]; granted: string[]; connectors: { name: string; title: string }[] }>;
   settingsGrant(processor: string, on: boolean): Promise<string[]>;
   settingsProcessorChecks(): Promise<ProcessorCheck[]>;
   settingsBudget(): Promise<Budget>;
   settingsSetBudget(limits: Budget['limits']): Promise<Budget>;
-  settingsPhone(): Promise<PhoneState>;
-  settingsPhoneServe(on: boolean): Promise<{ ok: boolean; said?: string; link?: string; state: PhoneState }>;
-  settingsPhoneCode(q: { owner: boolean }): Promise<PairingCode>;
-  settingsPhoneRemove(id: string): Promise<PhoneState['devices']>;
-  settingsDevice(): Promise<{ name: string; push: boolean; key: string } | null>;
-  settingsPush(sub: PushSubscriptionJSON | null): Promise<boolean>;
   restoreActivity(): Promise<{
     activity: Arranged;
     unavailable: string[];

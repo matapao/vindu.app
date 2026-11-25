@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export function stageCore(stage, app, { os, cpu, libc }) {
+export function stageServer(stage, app, { os, cpu, libc }) {
   const packages = [
     { id: 'vindu.app', src: app, files: ['dist/src', 'static'] },
     { id: 'vindu', src: path.resolve(app, '../vindu'), files: ['dist'] },
@@ -31,17 +31,17 @@ export function stageCore(stage, app, { os, cpu, libc }) {
       fs.rmSync(path.join(dest, file), { recursive: true, force: true });
     }
   }
-  const [core, ...siblings] = staged;
+  const [server, ...siblings] = staged;
   // Replace the development links with the exact packages installed above.
   for (const sibling of siblings) {
-    const target = path.join(core.dest, 'node_modules', sibling.manifest.name);
+    const target = path.join(server.dest, 'node_modules', sibling.manifest.name);
     if (!fs.lstatSync(target).isSymbolicLink() || fs.realpathSync(target) !== fs.realpathSync(sibling.dest)) {
       throw new Error(`Expected ${sibling.manifest.name} to resolve to its staged package`);
     }
     fs.unlinkSync(target);
     fs.renameSync(sibling.dest, target);
-    core.manifest.dependencies[sibling.manifest.name] = sibling.manifest.version;
+    server.manifest.dependencies[sibling.manifest.name] = sibling.manifest.version;
   }
-  fs.writeFileSync(path.join(core.dest, 'package.json'), JSON.stringify(core.manifest, null, 2));
-  fs.renameSync(core.dest, path.join(stage, 'core'));
+  fs.writeFileSync(path.join(server.dest, 'package.json'), JSON.stringify(server.manifest, null, 2));
+  fs.renameSync(server.dest, path.join(stage, 'server'));
 }

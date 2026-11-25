@@ -32,5 +32,5 @@ export type Task = {
   state?: ShellState;
   pointedAt?: string; // static or dynamic; the shell's state; what was pointed at, as last drawn
   listed?: boolean; // the main process has listed it: once it is no longer listed, it has closed
-  seen?: number; // at a phone's width, how many views it had when the person last looked at them
+  seen?: number; // in a narrow window, how many views it had when the person last looked at them
 };

@@ -1,5 +1,5 @@
-// The app's core: it opens Desktop's tasks and connects each to the processor that runs it. Celler brokers connector
-// tools. Vindu serves task views and questions, in the desktop window, browser and paired devices.
+// The app's server, on this computer: it opens Desktop's tasks and connects each to the processor that runs it. Celler
+// brokers connector tools. Vindu serves task views and questions, in the Electron window or the person's browser here.
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Sender } from './web.js';
@@ -7,7 +7,7 @@ import type { Opening } from './task-checkpoint.js';
 import { workFolder } from './work.js';
 import { openPath, pickFiles, pickFolder, pickSave } from './os.js';
 import type { AppOptions } from './desktop-settings.js';
-import { openDesktopHost, requireLocalDesktop } from './desktop-host.js';
+import { openDesktopHost } from './desktop-host.js';
 import { taskActivity } from './desktop-task-activity.js';
 import { taskCaptures } from './desktop-task-captures.js';
 import { taskPanes } from './desktop-task-panes.js';
@@ -18,14 +18,13 @@ const slug = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^\w]+/g,
 
 export async function startApp(o: AppOptions = {}) {
   const host = await openDesktopHost(o);
-  const { userData, home, send, tasksFolder, tilde, desktop, granted, celler, network, doors } = host;
+  const { userData, home, send, tasksFolder, tilde, desktop, granted, celler } = host;
   const { availableConnectors, keyOf, connectorsDir, openKeys, keysFile } = host.connectors;
   const { files, attach } = host.attachments;
   const state = taskActivity(host);
   const { tasks, opened, latest, routers, startedWith, need, acts, save, changed, checkpoints, unavailable,
     notices, notify } = state;
   const media = taskCaptures(host, state);
-  const { toPhone, togglePhone } = media;
   const panes = taskPanes(host, state);
   const { pages } = panes;
   const { start, runPrompt } = desktopTasks(host, state, media, pages);
@@ -57,7 +56,7 @@ export async function startApp(o: AppOptions = {}) {
   desktop.handle('templates:delete', (_e, file: string) => { readTemplate(file); fs.rmSync(path.join(templatesDir, file)); return listTemplates(); });
   desktop.handle('settings:connectors', async () => { const { connectors, failed } = availableConnectors(); // what the person may give a task, and why any did not read
     return { list: await Promise.all(connectors.map(async c => ({ name: c.name, title: c.title, kind: c.kind, guide: !!c.skill, ...(c.kind === 'http' && c.http?.auth ? { key: (await keyOf(c)) ? 'set' : 'missing' } : {}) }))), failed }; });
-  desktop.handle('keys:open', e => { requireLocalDesktop(e); return openKeys(); }); // the keys page's address: the page opens it in a tab of its own
+  desktop.handle('keys:open', () => openKeys()); // the keys page's address: the page opens it in a tab of its own
   desktop.handle('task:reminders', (_e, id: string) => { need(id).showReminders(); });
   /** A new task from a task's view, as the person left it: the same harness, folder, servers and connectors, a fresh
    *  session, and the view carried with what it points at (exact, under the new task's ids). */
@@ -108,14 +107,14 @@ export async function startApp(o: AppOptions = {}) {
     media.cancelTask(id);
     const t = tasks.get(id); // its folder stays as the harness left it
     try { await t?.close(); } finally {
-      tasks.delete(id); routers.delete(id); latest.delete(id); startedWith.delete(id); toPhone('closed', { task: id }); void doors.release(id);
+      tasks.delete(id); routers.delete(id); latest.delete(id); startedWith.delete(id);
       state.clear(id);
       await pages.closeTask(id);
     }
   };
   desktop.handle('task:close', (_e, id: string) => closeTask(id));
   desktop.on('task:shown', (_e, id: string) => {
-    if (state.front !== id) toPhone('front', { task: id }); state.front = id; pages.front(id);
+    state.front = id; pages.front(id);
     const a = acts.get(id); if (a) { a.seenAt = Date.now(); a.unseen = []; } changed(id); // what the person now looks at is seen
   });
   desktop.on('shell:event', ({ sender }, id: string, ev: unknown) => {
@@ -135,8 +134,6 @@ export async function startApp(o: AppOptions = {}) {
     if (state.closing) return;
     state.closing = true;
     for (const id of tasks.keys()) { try { save(id); } catch { console.warn(`Could not save task ${id} before shutdown.`); } }
-    await network?.close();
-    doors.close();
     await media.close();
     notices.clear();
     await Promise.allSettled([...tasks.values()].map(task => task.close()));
@@ -146,14 +143,11 @@ export async function startApp(o: AppOptions = {}) {
   };
   /** Desktop's address, for the person; for a test: Desktop's page, the tasks, where each page's pane is and whether it is pictured, and Celler. */
   return {
-    url: desktop.url, desktop, send, tasks, close, togglePhone, phone: media.phone,
+    url: desktop.url, desktop, send, tasks, close,
     templatesDir, connectorsDir, openKeys, keysFile, notify, notices: () => notices.size, captures: media.list,
     activity: state.list, front: () => state.front, act: (id: string) => acts.get(id),
     pages: (task: string) => pages.pages(task), pageEval: (task: string, name: string, js: string) => pages.evaluate(task, name, js),
-
     celler,
-    /** The network side: a code to pair with, as Phone in Settings makes one (a test's other computer). */
-    pairingCode: () => network!.devices.newCode().code,
   };
 }
 export type App = Awaited<ReturnType<typeof startApp>>;

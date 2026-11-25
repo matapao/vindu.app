@@ -1,13 +1,13 @@
-// Build the desktop app or a frame-only client. --dir makes a local bundle for testing.
+// Build the Electron app, with the app's own server inside it. --dir makes a local bundle for testing.
 // Distributable macOS builds require a Developer ID and notarization.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { stageCore } from './stage-core.mjs';
+import { stageServer } from './stage-server.mjs';
 
-const args = process.argv.slice(2), dir = args.includes('--dir'), client = args.includes('--client');
-const FRAME = path.join(import.meta.dirname, '..'), APP = path.join(FRAME, '..'), out = path.join(FRAME, 'out', ...(client ? ['client'] : [])), stage = path.join(out, 'stage');
+const args = process.argv.slice(2), dir = args.includes('--dir');
+const FRAME = path.join(import.meta.dirname, '..'), APP = path.join(FRAME, '..'), out = path.join(FRAME, 'out'), stage = path.join(out, 'stage');
 const require = createRequire(import.meta.url);
 const { build, Platform, Arch } = require('electron-builder');
 const system = args.includes('--win') ? 'win' : args.includes('--linux') ? 'linux' : 'mac';
@@ -21,12 +21,12 @@ if (!dir && system === 'mac') {
   macIdentity = /([A-F0-9]{40}) "Developer ID Application: /.exec(identities)?.[1];
   if (!macIdentity) throw new Error('A macOS release requires a Developer ID Application signing identity.');
 }
-if (!client) for (const f of ['dist/src/main.js', 'dist/src/renderer.bundle.js', 'dist/src/phone.bundle.js', 'dist/src/keys.bundle.js', 'node_modules/@matapao/celler/dist/index.js', 'node_modules/@matapao/vindu/dist/index.js', 'node_modules/@matapao/vindu/dist/server.js'])
+for (const f of ['dist/src/main.js', 'dist/src/renderer.bundle.js', 'dist/src/keys.bundle.js', 'node_modules/@matapao/celler/dist/index.js', 'node_modules/@matapao/vindu/dist/index.js', 'node_modules/@matapao/vindu/dist/server.js'])
   if (!fs.existsSync(path.join(APP, f))) throw new Error(`${path.join(APP, f)} is missing. Run the app's bootstrap command to build its linked dependencies and app.`);
 if (!fs.existsSync(path.join(FRAME, 'dist', 'src', 'main.js'))) throw new Error('the frame is not built: pnpm build here first');
 fs.rmSync(stage, { recursive: true, force: true }); fs.mkdirSync(stage, { recursive: true });
 
-if (!client) stageCore(stage, APP, { os, cpu, libc });
+stageServer(stage, APP, { os, cpu, libc });
 
 // its icon, vindu's own (static/icons/vindu.svg), as scripts/icons.mjs draws it for a Mac: its square on 824 of
 // 1024 pixels
@@ -40,22 +40,19 @@ const config = {
   files: ['dist/src/**/*', 'package.json'],
   extraResources: [
     { from: path.join(APP, 'LICENSE'), to: 'licenses/Vindu.txt' },
-    ...(client ? [] : [
-      { from: path.resolve(APP, '../celler/LICENSE'), to: 'licenses/Celler.txt' },
-      { from: path.resolve(APP, '../vindu/LICENSE'), to: 'licenses/Vindu-SDK.txt' },
-      // Copy from the stage so electron-builder includes the core's node_modules.
-      { from: stage, to: '.', filter: ['core/**/*'] },
-    ]),
+    { from: path.resolve(APP, '../celler/LICENSE'), to: 'licenses/Celler.txt' },
+    { from: path.resolve(APP, '../vindu/LICENSE'), to: 'licenses/Vindu-SDK.txt' },
+    // Copy from the stage so electron-builder includes the server's node_modules.
+    { from: stage, to: '.', filter: ['server/**/*'] },
   ],
-  asar: true, npmRebuild: false, nodeGypRebuild: false, extraMetadata: { desktopName: 'vindu.desktop', ...(homepage ? { homepage } : {}), ...(client ? { client: true } : {}) }, // its windows' id on Linux: its desktop entry's
-  ...(client ? { artifactName: '${productName}-client-${version}-${arch}.${ext}' } : {}), // named apart from the full build's (electron-builder fills it in)
+  asar: true, npmRebuild: false, nodeGypRebuild: false, extraMetadata: { desktopName: 'vindu.desktop', ...(homepage ? { homepage } : {}) }, // its windows' id on Linux: its desktop entry's
   electronVersion: require('electron/package.json').version,
   ...(system === 'mac' ? { electronDist: path.join(path.dirname(require.resolve('electron/package.json')), 'dist') } : {}), // the Electron here, for this Mac
   protocols: [{ name: 'vindu', schemes: ['vindu'] }],
   mac: { category: 'public.app-category.productivity', type: 'distribution', identity: macIdentity, notarize: !dir },
   nsis: { oneClick: true, perMachine: false, include: path.join(FRAME, 'scripts', 'windows-links.nsh') }, // its scheme, which electron-builder registers on a Mac and Linux only
   linux: { category: 'Utility', maintainer: 'vindu', synopsis: 'Vindu\'s desktop app', syncDesktopName: true },
-  publish: feed ? [{ provider: 'generic', url: feed, ...(client ? { channel: 'client' } : {}) }] : null,
+  publish: feed ? [{ provider: 'generic', url: feed }] : null,
 };
 const targets = {
   mac: () => Platform.MAC.createTarget(dir ? ['dir'] : ['zip', 'dmg'], Arch.arm64),

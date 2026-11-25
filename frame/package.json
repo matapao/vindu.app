@@ -4,18 +4,17 @@
   "version": "0.1.0",
   "license": "MIT",
   "private": true,
-  "description": "vindu's desktop app: Desktop's window on a computer, the same page a browser shows. It starts this computer's vindu, or opens one elsewhere.",
+  "description": "vindu's Electron app: Desktop's window on this computer, the same page a browser shows. It starts the app's own server process on this computer.",
   "type": "module",
   "main": "dist/src/main.js",
   "scripts": {
-    "build": "tsc -p .",
+    "build": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\" && tsc -p .",
     "typecheck": "tsc -p . --noEmit",
     "electron:fetch": "node node_modules/electron/install.js",
     "start": "electron .",
-    "test": "node --test dist/test/link-routing.js && node dist/test/smoke.js && node dist/test/live.js && node dist/test/links.js && node dist/test/elsewhere.js",
+    "test": "node --test dist/test/link-routing.js && node dist/test/smoke.js && node dist/test/live.js && node dist/test/links.js",
     "pack:app": "node scripts/pack.mjs",
-    "test:packed": "node dist/test/packed.js",
-    "test:client": "node dist/test/client.js"
+    "test:packed": "node dist/test/packed.js"
   },
   "dependencies": {
     "electron-updater": "6.8.11"
