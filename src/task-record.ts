@@ -2,7 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import type { AttachmentEntry, ResultEntry, ResultSource, Row } from '@matapao/vindu/server';
+import { isDeepStrictEqual } from 'node:util';
+import type { AttachmentEntry, ResultEntry, ResultPointer, ResultSource, Row } from '@matapao/vindu/server';
 
 type Origin = { task: string; id: string };
 type Attachment = AttachmentEntry & { at: string; digest: string; carried?: Origin };
@@ -52,6 +53,21 @@ export class TaskRecord implements ResultSource {
   get(id: string): Entry | undefined { return this.byId.get(id); }
   all(): readonly Entry[] { return this.entries; }
 
+  /** What a restored view points at, as this record keeps it: the entry's id where it is the same result (by its ref,
+   *  the record's id, which a checkpoint names it by; or by its server, tool and input) or the same file, still there.
+   *  Otherwise undefined, and the panels that showed it wait. Nothing is called again. */
+  kept(pointer: ResultPointer): string | undefined {
+    if (pointer.kind === 'result') {
+      const entry = this.byId.get(pointer.ref ?? pointer.id);
+      const same = entry?.kind === 'result' && entry.server === pointer.server && entry.tool === pointer.tool &&
+        (pointer.ref !== undefined ? entry.ref === pointer.ref : isDeepStrictEqual(entry.input, pointer.input));
+      return same ? entry.id : undefined;
+    }
+    const entry = this.byId.get(pointer.id);
+    const same = entry?.kind === 'attachment' && entry.name === pointer.name && entry.mime === pointer.mime && entry.file === pointer.file;
+    return same && fs.existsSync(entry.file) ? entry.id : undefined;
+  }
+
   addResult(result: NewResult): Result {
     const { images = [], ...data } = result;
     const id = `r${++this.results}`;
@@ -61,7 +77,7 @@ export class TaskRecord implements ResultSource {
       return { file, mime: image.mime };
     });
     return this.keep({
-      ...data, id, kind: 'result', text: result.text ?? '', images: saved,
+      ...data, id, ref: id, kind: 'result', text: result.text ?? '', images: saved,
       at: new Date().toISOString(), digest: digest(JSON.stringify(result.raw ?? null)),
     });
   }
@@ -86,7 +102,7 @@ export class TaskRecord implements ResultSource {
       fs.copyFileSync(image.file, file, fs.constants.COPYFILE_EXCL);
       return { ...image, file };
     });
-    return this.keep({ ...entry, id, images, carried, at });
+    return this.keep({ ...entry, id, ref: id, images, carried, at });
   }
 
   frame(name: 'progress' | 'turns', value: unknown): void {

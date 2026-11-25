@@ -200,6 +200,8 @@ export async function openTask(setup: TaskSetup) {
     ...(t.views ? { views: { ...t.views, ...(t.views.terminal !== false ? { terminal: { env: t.env, ...t.views.terminal } } : {}) } } : {}),
     record: event => record.addResult({ server: UI, tool: event.tool, input: event.input, value: event.result,
       raw: event.result, fidelity: 'exact', via: 'window' }).id,
+    // a restored view's results, as the task's record keeps them on disk
+    refetch: async pointer => record.kept(pointer),
     capture: t.capture, onSuggest: t.onSuggest, onReminder: t.onReminder, onNotice: t.onNotice,
     onJob: t.connect && t.jobs !== false ? t.onJob : undefined, jobs: t.jobs, hooks: t.hooks,
   });
